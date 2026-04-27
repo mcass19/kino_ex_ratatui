@@ -64,12 +64,19 @@ defmodule Kino.ExRatatui do
   alias ExRatatui.Session
   alias ExRatatui.Transport
   alias ExRatatui.Transport.ByteStream
+  alias Kino.JS, as: KinoJS
   alias Kino.JS.Live, as: KinoLive
 
   # Same alt-screen pair `ExRatatui.SSH` emits on disconnect. Without
   # the leave sequence the xterm.js view would stay in the alt buffer
   # with the cursor hidden after the App quits.
   @leave_screen "\e[?1049l\e[?25h\e[0m"
+
+  # Defaults for `frame/2`. Mirrors the canonical 80×24 terminal so
+  # callers who just want a screenshot of a few widgets don't have to
+  # think about sizing.
+  @default_cols 80
+  @default_rows 24
 
   @doc """
   Builds a new live kino that hosts `mod` (an `ExRatatui.App`).
@@ -85,6 +92,54 @@ defmodule Kino.ExRatatui do
   @spec new(module(), keyword()) :: KinoLive.t()
   def new(mod, mount_opts \\ []) when is_atom(mod) and is_list(mount_opts) do
     KinoLive.new(__MODULE__, {mod, mount_opts})
+  end
+
+  @doc """
+  Renders a one-shot static frame of widgets and returns a
+  non-interactive `Kino.JS` widget that paints it once.
+
+  Useful for documentation, screenshots in notebooks, or
+  `Kino.Layout.grid([frame_a, frame_b, frame_c])` side-by-side
+  comparisons. There is no event loop, no resize handling, and no
+  runtime server — just an `ExRatatui.Session` rendered once and
+  written to xterm.js.
+
+  ## Options
+
+    * `:cols` — terminal width in cells. Defaults to `#{@default_cols}`.
+    * `:rows` — terminal height in cells. Defaults to `#{@default_rows}`.
+
+  ## Examples
+
+      alias ExRatatui.Layout.Rect
+      alias ExRatatui.Widgets.{Block, Paragraph}
+
+      Kino.ExRatatui.frame(
+        [
+          {%Paragraph{
+             text: "Hello from a static frame!",
+             block: %Block{title: "demo"}
+           },
+           %Rect{x: 0, y: 0, width: 40, height: 5}}
+        ],
+        cols: 40,
+        rows: 5
+      )
+  """
+  @spec frame([{ExRatatui.widget(), ExRatatui.Layout.Rect.t()}], keyword()) :: KinoJS.t()
+  def frame(widgets, opts \\ []) when is_list(widgets) and is_list(opts) do
+    cols = Keyword.get(opts, :cols, @default_cols)
+    rows = Keyword.get(opts, :rows, @default_rows)
+
+    session = Session.new(cols, rows)
+
+    try do
+      :ok = Session.draw(session, widgets)
+      bytes = Session.take_output(session)
+      KinoJS.new(__MODULE__, {:binary, %{cols: cols, rows: rows, mode: "static"}, bytes})
+    after
+      :ok = Session.close(session)
+    end
   end
 
   ## Kino.JS.Live callbacks

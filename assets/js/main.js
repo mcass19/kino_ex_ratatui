@@ -1,6 +1,17 @@
-// kino_ex_ratatui — Livebook widget that runs an ExRatatui.App in xterm.js.
+// kino_ex_ratatui — Livebook widget for ExRatatui.
 //
-// Wire protocol (matches lib/kino/ex_ratatui.ex):
+// Two modes share the same bundle:
+//
+//   1. Live  (Kino.ExRatatui.new/2)
+//        payload from Elixir: {}  (empty object — handle_connect/1)
+//        wiring: FitAddon + onData + ResizeObserver + "ansi" handler
+//
+//   2. Static (Kino.ExRatatui.frame/2)
+//        payload from Elixir: {:binary, %{cols, rows, mode: "static"}, bytes}
+//        delivered to JS as: [{cols, rows, mode}, ArrayBuffer]
+//        wiring: term.resize(cols, rows); term.write(bytes); nothing else
+//
+// Wire protocol for live mode (matches lib/kino/ex_ratatui.ex):
 //
 //   client → server
 //     "resize" : {cols, rows}                — first one boots the runtime,
@@ -18,18 +29,63 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 
-export function init(ctx, _payload) {
+const FONT_FAMILY =
+  "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+const FONT_SIZE = 13;
+const THEME = {
+  background: "#1e1e2e",
+  foreground: "#cdd6f4",
+  cursor: "#f5e0dc",
+};
+
+export function init(ctx, payload) {
   ctx.importCSS("main.css");
 
+  ctx.root.style.fontFamily = FONT_FAMILY;
+  ctx.root.style.background = THEME.background;
+  ctx.root.style.padding = "8px";
+  ctx.root.style.borderRadius = "6px";
+
+  // `Array.isArray` reliably distinguishes Kino's binary payload shape
+  // ([info, ArrayBuffer]) from the empty `{}` map the live widget sends
+  // back from handle_connect/1.
+  if (Array.isArray(payload)) {
+    initStatic(ctx, payload);
+  } else {
+    initLive(ctx);
+  }
+}
+
+function initStatic(ctx, [{ cols, rows }, buffer]) {
+  // Static frames know their exact size up front, so we don't need
+  // FitAddon — just create the terminal at the right cell dimensions
+  // and let xterm.js compute the pixel size from font metrics.
+  const container = document.createElement("div");
+  container.style.width = "100%";
+  ctx.root.appendChild(container);
+
+  const term = new Terminal({
+    cols,
+    rows,
+    cursorBlink: false,
+    cursorStyle: "block",
+    disableStdin: true,
+    convertEol: false,
+    fontFamily: FONT_FAMILY,
+    fontSize: FONT_SIZE,
+    scrollback: 0,
+    theme: THEME,
+  });
+
+  term.open(container);
+  term.write(new Uint8Array(buffer));
+}
+
+function initLive(ctx) {
   // Container styling. xterm.js needs a fixed-height host; we give it a
   // sensible default that fits a typical 80×24 viewport at 13px font.
   // Users can grow the cell to make this larger and the FitAddon picks
   // it up via the ResizeObserver below.
-  ctx.root.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-  ctx.root.style.background = "#1e1e2e";
-  ctx.root.style.padding = "8px";
-  ctx.root.style.borderRadius = "6px";
-
   const container = document.createElement("div");
   container.style.height = "400px";
   container.style.width = "100%";
@@ -38,13 +94,9 @@ export function init(ctx, _payload) {
   const term = new Terminal({
     cursorBlink: true,
     convertEol: false,
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-    fontSize: 13,
-    theme: {
-      background: "#1e1e2e",
-      foreground: "#cdd6f4",
-      cursor: "#f5e0dc",
-    },
+    fontFamily: FONT_FAMILY,
+    fontSize: FONT_SIZE,
+    theme: THEME,
   });
 
   const fit = new FitAddon();
