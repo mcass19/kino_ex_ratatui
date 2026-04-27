@@ -186,13 +186,19 @@ defmodule Counter do
 end
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+{:module, Counter, <<70, 79, 82, 49, 0, 0, 101, ...>>, {:bump, 2}}
+```
+
 ## Run it
 
 Click into the terminal below to focus it, then:
 
-- `+` and `-` move the counter — the border + number + gauge all track the sign
-- `r` resets to zero
-- `q` quits (cell re-eval starts fresh)
+* `+` and `-` move the counter — the border + number + gauge all track the sign
+* `r` resets to zero
+* `q` quits (cell re-eval starts fresh)
 
 The Sparkline tracks the last 60 magnitudes, the Gauge below shows progress toward `±50`, and the trend label updates every step.
 
@@ -258,6 +264,6 @@ Kino.ExRatatui.frame(
 
 ## Where to next
 
-- The [Custom Transports guide](https://hexdocs.pm/ex_ratatui/custom_transports.html) walks through how `Kino.ExRatatui` plugs into ExRatatui's transport behaviour — useful if you want to write your own.
-- [`ExRatatui.App` docs](https://hexdocs.pm/ex_ratatui/ExRatatui.App.html) cover the full callback contract this Counter implements.
-- The [Building UIs guide](https://hexdocs.pm/ex_ratatui/building_uis.html) catalogs every widget and shows how to compose them with the layout engine.
+* The [Custom Transports guide](https://hexdocs.pm/ex_ratatui/custom_transports.html) walks through how `Kino.ExRatatui` plugs into ExRatatui's transport behaviour — useful if you want to write your own.
+* [`ExRatatui.App` docs](https://hexdocs.pm/ex_ratatui/ExRatatui.App.html) cover the full callback contract this Counter implements.
+* The [Building UIs guide](https://hexdocs.pm/ex_ratatui/building_uis.html) catalogs every widget and shows how to compose them with the layout engine.

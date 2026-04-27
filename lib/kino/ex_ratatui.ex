@@ -2,10 +2,9 @@ defmodule Kino.ExRatatui do
   @moduledoc """
   Run an `ExRatatui.App` inside a Livebook notebook via xterm.js.
 
-  Same `App` module runs unchanged over the local tty, SSH, BEAM
-  distribution, and now Livebook — `Kino.ExRatatui` is a byte-stream
-  transport that pipes the runtime server's rendered ANSI through an
-  xterm.js iframe and forwards keypresses + resize events back.
+  `Kino.ExRatatui` is a byte-stream transport that pipes the runtime
+  server's rendered ANSI through an xterm.js iframe and forwards
+  keypresses + resize events back.
 
   ## Example
 
@@ -52,8 +51,7 @@ defmodule Kino.ExRatatui do
   `ExRatatui.Transport.ByteStream` to pump input + resize events. See
   the [Custom Transports
   guide](https://hexdocs.pm/ex_ratatui/custom_transports.html) for the
-  reference shape — this module follows it almost line-for-line, swapping
-  TCP callbacks for `Kino.JS.Live` callbacks.
+  reference shape.
   """
 
   use Kino.JS, assets_path: "lib/assets/kino_ex_ratatui"
@@ -71,7 +69,7 @@ defmodule Kino.ExRatatui do
   # (where the alt-screen leave sequence restores the user's shell),
   # an xterm.js iframe has no shell behind it — leaving alt-screen
   # would just show an empty buffer. So we clear the screen, reset
-  # SGR, and write a small dim+italic stopped-state message instead.
+  # SGR, and write a small stopped-state message instead.
   @stopped_screen "\e[2J\e[H\e[0m\r\n" <>
                     "  \e[2m\e[3mApp stopped — re-evaluate the cell to start a new run.\e[0m\r\n"
 

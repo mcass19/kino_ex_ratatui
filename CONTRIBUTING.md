@@ -2,6 +2,12 @@
 
 Thanks for your interest in contributing!
 
+KinoExRatatui is a pure Elixir project built on [ExRatatui](https://github.com/mcass19/ex_ratatui).
+
+Feel free to also consider contributing on the upstream library if you're missing a feature, or something is not working. Contributions are welcome everywhere!
+
+This guide will help you get set up.
+
 ## Setup
 
 1. Clone the repo:
@@ -13,7 +19,7 @@ cd kino_ex_ratatui
 
 2. Prerequisites:
 
-- **Elixir** 1.17+ and **Erlang/OTP** 26+ (the `mise.toml` pins exact versions)
+- **Elixir** 1.17+ and **Erlang/OTP** 26+.
 - **Node.js** 20+ — only needed to rebuild the xterm.js bundle. End users installing from hex don't need it.
 
 3. Fetch dependencies:
@@ -23,27 +29,14 @@ mix deps.get
 mix assets.install   # cd assets && npm install
 ```
 
-## Project layout
-
-```
-lib/kino/ex_ratatui.ex                 # the live + static widget
-lib/assets/kino_ex_ratatui/main.{js,css}   # bundled JS (committed)
-assets/                                # JS source — npm project + esbuild
-  package.json
-  build.js                             # esbuild driver
-  js/main.js                           # xterm.js + FitAddon + Kino bridge
-test/kino/...                          # ExUnit tests
-test/support/                          # App fixtures (Counter, CrashingMount)
-```
-
-## Tests
+## Running Tests
 
 ```sh
-mix test                # 22 tests, runs async in ~0.2s
+mix test
 mix test --cover        # must report 100.00% Total
 ```
 
-The suite uses `Kino.Test`'s `configure_livebook_bridge` setup to drive the live widget end-to-end without a real browser. Test fixtures (`KinoExRatatui.Test.Counter`, `KinoExRatatui.Test.CrashingMount`) are excluded from the coverage threshold via `test_coverage: [ignore_modules: [...]]` in `mix.exs`.
+The suite uses `Kino.Test`'s `configure_livebook_bridge` setup to drive the live widget end-to-end without a real browser.
 
 For the actual browser smoke test, open `livebook/counter.livemd` in Livebook and run the cells.
 
@@ -59,21 +52,29 @@ The bundled output lands at `lib/assets/kino_ex_ratatui/main.js` (and `main.css`
 
 If you change anything under `assets/js/`, rerun `mix assets.build` and commit the regenerated bundle.
 
-## Formatting & lints
+## Branching and Commits
+
+- Branch from `main`
+- Keep commits focused and atomic
+- Use descriptive commit message prefixes: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`
+
+## Pull Requests
+
+Before submitting a PR, make sure the following pass:
 
 ```sh
 mix format --check-formatted
+mix compile --warnings-as-errors
 mix credo --strict
+mix dialyzer
+mix test --cover
 ```
 
-Both are required to be clean.
+- Keep PRs focused — one feature or fix per PR
+- Add tests for new functionality
+- Add `@doc`, `@spec`, and `@moduledoc` for new public functions and modules
+- Update documentation (moduledocs, CHANGELOG, README if applicable)
+- For breaking changes, include migration notes in the CHANGELOG
+- Follow existing code style and patterns
+- Ensure CI passes before requesting review
 
-## Pull requests
-
-- Add tests for new behavior — coverage stays at 100%.
-- Update `CHANGELOG.md` under `## [Unreleased]` with a sentence describing the change.
-- Keep the moduledoc in `lib/kino/ex_ratatui.ex` in sync with any new public surface.
-
-## Scope
-
-`kino_ex_ratatui` is intentionally a thin transport — it doesn't add widgets, change the `ExRatatui.App` contract, or invent a notebook-flavored API. Widgets and runtime features belong [upstream in `ex_ratatui`](https://github.com/mcass19/ex_ratatui).
