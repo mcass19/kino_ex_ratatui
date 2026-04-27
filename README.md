@@ -64,7 +64,7 @@ end
 Kino.ExRatatui.new(Counter)
 ```
 
-The full notebook lives at [`livebook/counter.livemd`](livebook/counter.livemd) — open it in Livebook and run the cells.
+The full notebook lives at [`livebook/counter.livemd`](https://github.com/mcass19/kino_ex_ratatui/blob/main/livebook/counter.livemd) — open it in Livebook and run the cells.
 
 ## Static frames
 
