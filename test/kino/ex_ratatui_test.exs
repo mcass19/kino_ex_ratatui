@@ -7,6 +7,8 @@ defmodule Kino.ExRatatuiTest do
   alias ExRatatui.Runtime
   alias KinoExRatatui.Test.{Counter, CrashingMount}
 
+  doctest Kino.ExRatatui
+
   setup :configure_livebook_bridge
 
   # Clean up the kino's GenServer at the end of each test so server pids

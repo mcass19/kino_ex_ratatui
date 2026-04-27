@@ -87,8 +87,7 @@ defmodule KinoExRatatui.MixProject do
       ],
       groups_for_modules: [
         Widgets: [
-          Kino.ExRatatui,
-          Kino.ExRatatui.Frame
+          Kino.ExRatatui
         ]
       ]
     ]

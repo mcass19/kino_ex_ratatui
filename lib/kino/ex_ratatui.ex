@@ -111,20 +111,21 @@ defmodule Kino.ExRatatui do
 
   ## Examples
 
-      alias ExRatatui.Layout.Rect
-      alias ExRatatui.Widgets.{Block, Paragraph}
-
-      Kino.ExRatatui.frame(
-        [
-          {%Paragraph{
-             text: "Hello from a static frame!",
-             block: %Block{title: "demo"}
-           },
-           %Rect{x: 0, y: 0, width: 40, height: 5}}
-        ],
-        cols: 40,
-        rows: 5
-      )
+      iex> alias ExRatatui.Layout.Rect
+      iex> alias ExRatatui.Widgets.{Block, Paragraph}
+      iex> kino = Kino.ExRatatui.frame(
+      ...>   [
+      ...>     {%Paragraph{
+      ...>        text: "Hello from a static frame!",
+      ...>        block: %Block{title: "demo"}
+      ...>      },
+      ...>      %Rect{x: 0, y: 0, width: 40, height: 5}}
+      ...>   ],
+      ...>   cols: 40,
+      ...>   rows: 5
+      ...> )
+      iex> kino.module
+      Kino.ExRatatui
   """
   @spec frame([{ExRatatui.widget(), ExRatatui.Layout.Rect.t()}], keyword()) :: KinoJS.t()
   def frame(widgets, opts \\ []) when is_list(widgets) and is_list(opts) do
