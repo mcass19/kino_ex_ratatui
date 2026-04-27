@@ -56,9 +56,7 @@ defmodule KinoExRatatui.MixProject do
         "Changelog" => @changelog_url
       },
       keywords: ~w(kino livebook tui terminal ratatui ex_ratatui xterm),
-      files:
-        ~w(lib assets/js assets/package.json .formatter.exs mix.exs README.md LICENSE CHANGELOG.md),
-      exclude_patterns: ~w(assets/node_modules)
+      files: ~w(lib .formatter.exs mix.exs README.md LICENSE CHANGELOG.md)
     ]
   end
 
