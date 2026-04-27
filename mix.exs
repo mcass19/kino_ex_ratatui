@@ -14,6 +14,7 @@ defmodule KinoExRatatui.MixProject do
       elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
+      aliases: aliases(),
       deps: deps(),
       package: package(),
       name: "KinoExRatatui",
@@ -35,6 +36,13 @@ defmodule KinoExRatatui.MixProject do
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
+
+  defp aliases do
+    [
+      "assets.install": ["cmd --cd assets npm install"],
+      "assets.build": ["cmd --cd assets npm run build"]
+    ]
+  end
 
   defp deps do
     [
