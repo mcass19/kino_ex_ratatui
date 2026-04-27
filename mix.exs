@@ -21,6 +21,14 @@ defmodule KinoExRatatui.MixProject do
       homepage_url: @source_url,
       source_url: @source_url,
       docs: docs(),
+      test_coverage: [
+        summary: [threshold: 100],
+        ignore_modules: [
+          # Test fixtures — exercised by tests.
+          KinoExRatatui.Test.Counter,
+          KinoExRatatui.Test.CrashingMount
+        ]
+      ],
       dialyzer: [
         plt_local_path: "plts",
         plt_core_path: "plts/core"

@@ -1,0 +1,229 @@
+defmodule Kino.ExRatatuiTest do
+  use ExUnit.Case, async: true
+
+  import ExUnit.CaptureLog
+  import Kino.Test
+
+  alias ExRatatui.Runtime
+  alias KinoExRatatui.Test.{Counter, CrashingMount}
+
+  setup :configure_livebook_bridge
+
+  # Clean up the kino's GenServer at the end of each test so server pids
+  # (and the Rust-side Sessions they own) don't leak across the suite.
+  defp on_exit_stop(kino) do
+    on_exit(fn ->
+      if Process.alive?(kino.pid), do: GenServer.stop(kino.pid, :shutdown)
+    end)
+  end
+
+  defp assigns(kino), do: :sys.get_state(kino.pid).ctx.assigns
+
+  defp boot(mount_opts \\ [], cols \\ 80, rows \\ 24) do
+    kino = Kino.ExRatatui.new(Counter, mount_opts)
+    on_exit_stop(kino)
+    push_event(kino, "resize", %{"cols" => cols, "rows" => rows})
+    # Synchronize: ensure the resize has been processed before the test
+    # inspects assigns. :sys.get_state flushes the mailbox by virtue of
+    # being a synchronous call.
+    _ = :sys.get_state(kino.pid)
+    kino
+  end
+
+  describe "new/2 — initial state" do
+    test "starts a Kino.JS.Live widget without booting the runtime server" do
+      kino = Kino.ExRatatui.new(Counter)
+      on_exit_stop(kino)
+
+      assert %Kino.JS.Live{module: Kino.ExRatatui, pid: pid} = kino
+      assert is_pid(pid) and Process.alive?(pid)
+
+      assigns = assigns(kino)
+      assert assigns.mod == Counter
+      assert assigns.mount_opts == []
+      assert assigns.session == nil
+      assert assigns.server == nil
+      assert assigns.server_ref == nil
+    end
+
+    test "stores caller-supplied mount_opts verbatim in assigns" do
+      kino = Kino.ExRatatui.new(Counter, theme: :dark, start: 10)
+      on_exit_stop(kino)
+
+      assert assigns(kino).mount_opts == [theme: :dark, start: 10]
+    end
+
+    test "handle_connect returns an empty payload (the JS drives initialization)" do
+      kino = Kino.ExRatatui.new(Counter)
+      on_exit_stop(kino)
+
+      assert connect(kino) == %{}
+    end
+  end
+
+  describe "first resize event" do
+    test "boots a Session at the reported dimensions and starts the runtime server" do
+      kino = boot([], 100, 30)
+      assigns = assigns(kino)
+
+      assert %ExRatatui.Session{} = assigns.session
+      assert is_pid(assigns.server)
+      assert Process.alive?(assigns.server)
+      assert is_reference(assigns.server_ref)
+      assert ExRatatui.Session.size(assigns.session) == {100, 30}
+    end
+
+    test "runtime server reports matching dimensions via Runtime.snapshot/1" do
+      kino = boot([], 80, 24)
+      snapshot = Runtime.snapshot(assigns(kino).server)
+
+      assert snapshot.mod == Counter
+      assert snapshot.transport == :session
+      assert snapshot.dimensions == {80, 24}
+    end
+
+    test "the runtime's writer_fn broadcasts the first frame as an ansi event" do
+      kino = boot()
+
+      assert_broadcast_event(kino, "ansi", {:binary, %{}, bytes})
+      assert is_binary(bytes)
+      assert byte_size(bytes) > 0
+    end
+  end
+
+  describe "subsequent resize events" do
+    test "forwards to ByteStream.forward_resize/4 without restarting the runtime" do
+      kino = boot([], 80, 24)
+      original_server = assigns(kino).server
+
+      push_event(kino, "resize", %{"cols" => 120, "rows" => 40})
+      _ = :sys.get_state(kino.pid)
+
+      assigns = assigns(kino)
+      assert assigns.server == original_server
+      assert ExRatatui.Session.size(assigns.session) == {120, 40}
+      assert Runtime.snapshot(assigns.server).dimensions == {120, 40}
+    end
+  end
+
+  describe "input events" do
+    test "forwards bytes to ByteStream.forward_input/3 and triggers a re-render" do
+      kino = boot()
+
+      assert_broadcast_event(kino, "ansi", {:binary, %{}, first_frame})
+
+      push_event(kino, "input", {:binary, %{}, "+"})
+      assert_broadcast_event(kino, "ansi", {:binary, %{}, second_frame})
+
+      assert is_binary(second_frame)
+      assert byte_size(second_frame) > 0
+      # The frame after `+` reflects "Count: 1" instead of "Count: 0",
+      # so the rendered byte payloads must differ.
+      assert second_frame != first_frame
+    end
+
+    test "input arriving before the first resize is silently dropped" do
+      kino = Kino.ExRatatui.new(Counter)
+      on_exit_stop(kino)
+
+      push_event(kino, "input", {:binary, %{}, "+"})
+      _ = :sys.get_state(kino.pid)
+
+      assert Process.alive?(kino.pid)
+      assigns = assigns(kino)
+      assert assigns.session == nil
+      assert assigns.server == nil
+    end
+  end
+
+  describe "server DOWN" do
+    test "broadcasts the alt-screen leave sequence and clears server refs" do
+      kino = boot()
+
+      # Drain the initial render's broadcast so the leave-screen one is
+      # the next event we capture.
+      assert_broadcast_event(kino, "ansi", {:binary, %{}, _initial})
+
+      push_event(kino, "input", {:binary, %{}, "q"})
+
+      # The Counter App returns {:stop, state} on `q`, so the runtime
+      # server exits :normal and our handle_info/2 fires.
+      assert_broadcast_event(
+        kino,
+        "ansi",
+        {:binary, %{}, "\e[?1049l\e[?25h\e[0m"},
+        500
+      )
+
+      _ = :sys.get_state(kino.pid)
+      assigns = assigns(kino)
+      assert assigns.session == nil
+      assert assigns.server == nil
+      assert assigns.server_ref == nil
+    end
+  end
+
+  describe "terminate/2" do
+    test "stops the runtime server when the live widget shuts down" do
+      kino = boot()
+      server = assigns(kino).server
+      ref = Process.monitor(server)
+
+      GenServer.stop(kino.pid, :shutdown)
+
+      assert_receive {:DOWN, ^ref, :process, ^server, _reason}, 500
+    end
+
+    test "is a no-op when no runtime server was ever started" do
+      kino = Kino.ExRatatui.new(Counter)
+      ref = Process.monitor(kino.pid)
+      GenServer.stop(kino.pid, :shutdown)
+
+      assert_receive {:DOWN, ^ref, :process, _, _}, 500
+    end
+  end
+
+  describe "unrelated handle_info messages" do
+    test "are silently ignored without crashing the live widget" do
+      kino = Kino.ExRatatui.new(Counter)
+      on_exit_stop(kino)
+
+      send(kino.pid, :some_unrelated_message)
+      send(kino.pid, {:some, :other, :tuple})
+      _ = :sys.get_state(kino.pid)
+
+      assert Process.alive?(kino.pid)
+    end
+  end
+
+  describe "Kino.JS asset info" do
+    test "__assets_info__/0 returns the bundle metadata Kino renders with" do
+      info = Kino.ExRatatui.__assets_info__()
+
+      assert is_map(info)
+      assert info.js_path == "main.js"
+      assert is_binary(info.hash)
+      assert is_binary(info.archive_path)
+    end
+  end
+
+  describe "App.mount/1 failure" do
+    test "the live widget exits when start_server/1 returns {:error, _}" do
+      Process.flag(:trap_exit, true)
+
+      # The runtime's internal Task.Supervisor dies via the linked
+      # {:EXIT, _, :boom} signal and logs an error before going down.
+      # Capture the log so the noise doesn't pollute the suite output.
+      capture_log(fn ->
+        kino = Kino.ExRatatui.new(CrashingMount)
+
+        # Don't on_exit_stop — the resize we're about to push will
+        # crash the live widget before the test body finishes.
+        ref = Process.monitor(kino.pid)
+        push_event(kino, "resize", %{"cols" => 80, "rows" => 24})
+
+        assert_receive {:DOWN, ^ref, :process, _, _reason}, 500
+      end)
+    end
+  end
+end

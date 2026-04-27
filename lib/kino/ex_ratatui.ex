@@ -134,9 +134,14 @@ defmodule Kino.ExRatatui do
     session = Session.new(cols, rows)
 
     try do
-      :ok = Session.draw(session, widgets)
-      bytes = Session.take_output(session)
-      KinoJS.new(__MODULE__, {:binary, %{cols: cols, rows: rows, mode: "static"}, bytes})
+      case Session.draw(session, widgets) do
+        :ok ->
+          bytes = Session.take_output(session)
+          KinoJS.new(__MODULE__, {:binary, %{cols: cols, rows: rows, mode: "static"}, bytes})
+
+        {:error, reason} ->
+          raise ArgumentError, "Kino.ExRatatui.frame/2: render failed — #{inspect(reason)}"
+      end
     after
       :ok = Session.close(session)
     end
