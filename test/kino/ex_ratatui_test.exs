@@ -139,23 +139,22 @@ defmodule Kino.ExRatatuiTest do
   end
 
   describe "server DOWN" do
-    test "broadcasts the alt-screen leave sequence and clears server refs" do
+    test "broadcasts the stopped-state screen and clears server refs" do
       kino = boot()
 
-      # Drain the initial render's broadcast so the leave-screen one is
-      # the next event we capture.
+      # Drain the initial render's broadcast so the stopped-state one
+      # is the next event we capture.
       assert_broadcast_event(kino, "ansi", {:binary, %{}, _initial})
 
       push_event(kino, "input", {:binary, %{}, "q"})
 
       # The Counter App returns {:stop, state} on `q`, so the runtime
-      # server exits :normal and our handle_info/2 fires.
-      assert_broadcast_event(
-        kino,
-        "ansi",
-        {:binary, %{}, "\e[?1049l\e[?25h\e[0m"},
-        500
-      )
+      # server exits :normal and our handle_info/2 fires. The widget
+      # paints a clear-screen + dim "App stopped" message instead of
+      # leaving the last frame frozen with the cursor on it.
+      assert_broadcast_event(kino, "ansi", {:binary, %{}, payload}, 500)
+      assert payload =~ "\e[2J"
+      assert payload =~ "App stopped"
 
       _ = :sys.get_state(kino.pid)
       assigns = assigns(kino)

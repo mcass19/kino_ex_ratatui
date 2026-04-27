@@ -67,10 +67,13 @@ defmodule Kino.ExRatatui do
   alias Kino.JS, as: KinoJS
   alias Kino.JS.Live, as: KinoLive
 
-  # Same alt-screen pair `ExRatatui.SSH` emits on disconnect. Without
-  # the leave sequence the xterm.js view would stay in the alt buffer
-  # with the cursor hidden after the App quits.
-  @leave_screen "\e[?1049l\e[?25h\e[0m"
+  # Painted into the iframe when the runtime server exits. Unlike SSH
+  # (where the alt-screen leave sequence restores the user's shell),
+  # an xterm.js iframe has no shell behind it — leaving alt-screen
+  # would just show an empty buffer. So we clear the screen, reset
+  # SGR, and write a small dim+italic stopped-state message instead.
+  @stopped_screen "\e[2J\e[H\e[0m\r\n" <>
+                    "  \e[2m\e[3mApp stopped — re-evaluate the cell to start a new run.\e[0m\r\n"
 
   # Defaults for `frame/2`. Mirrors the canonical 80×24 terminal so
   # callers who just want a screenshot of a few widgets don't have to
@@ -195,11 +198,12 @@ defmodule Kino.ExRatatui do
   @impl true
   def handle_info({:DOWN, ref, :process, _pid, _reason}, ctx)
       when ref == ctx.assigns.server_ref do
-    # App quit (`{:stop, state}`, `mount/1` failed, …). Flush the
-    # leave-screen sequence so the iframe restores its cursor / main
-    # buffer view, then drop the server refs so we don't try to stop a
-    # dead process from terminate/2.
-    broadcast_event(ctx, "ansi", {:binary, %{}, @leave_screen})
+    # App quit (`{:stop, state}`, `mount/1` failed, …). Paint the
+    # stopped-state screen (clear + dim message) so the user sees a
+    # clean "re-evaluate the cell" hint instead of a frozen frame
+    # with the cursor sitting on it. Then drop the server refs so we
+    # don't try to stop a dead process from terminate/2.
+    broadcast_event(ctx, "ansi", {:binary, %{}, @stopped_screen})
     {:noreply, assign(ctx, session: nil, server: nil, server_ref: nil)}
   end
 
