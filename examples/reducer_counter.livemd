@@ -1,0 +1,175 @@
+<!-- livebook:{"persist_outputs":true} -->
+
+# kino_ex_ratatui — Reducer Counter
+
+```elixir
+# When iterating on kino_ex_ratatui itself, swap the line below for
+# `{:kino_ex_ratatui, path: Path.expand("..", __DIR__)}`.
+Mix.install([
+  {:kino_ex_ratatui, "~> 0.1"}
+])
+```
+
+## What this notebook shows
+
+A counter implemented with `ExRatatui.App`'s **reducer runtime** (`use ExRatatui.App, runtime: :reducer`).
+
+The reducer runtime collapses `handle_event/2` and `handle_info/2` into a single `update/2` callback that receives all input as `{:event, event}` or `{:info, msg}` tuples. It also exposes `subscriptions/1` for declarative timers, PubSub topics, etc. — the runtime reconciles these on every state transition.
+
+A direct port of [`ex_ratatui/examples/reducer_counter_app.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/reducer_counter_app.exs).
+
+## The App
+
+```elixir
+defmodule ReducerCounter do
+  use ExRatatui.App, runtime: :reducer
+
+  alias ExRatatui.Event
+  alias ExRatatui.Layout
+  alias ExRatatui.Layout.Rect
+  alias ExRatatui.Style
+  alias ExRatatui.Subscription
+  alias ExRatatui.Widgets.{Block, Paragraph}
+
+  @impl true
+  def init(_opts), do: {:ok, %{count: 0}}
+
+  @impl true
+  def render(state, frame) do
+    area = %Rect{x: 0, y: 0, width: frame.width, height: frame.height}
+
+    [header_area, body_area, footer_area] =
+      Layout.split(area, :vertical, [{:length, 3}, {:min, 0}, {:length, 3}])
+
+    header = %Paragraph{
+      text: "  ExRatatui Counter (Reducer)",
+      style: %Style{fg: :cyan, modifiers: [:bold]},
+      block: %Block{
+        borders: [:all],
+        border_type: :rounded,
+        border_style: %Style{fg: :dark_gray}
+      }
+    }
+
+    body = %Paragraph{
+      text: "\n\n  Counter: #{state.count}",
+      style: %Style{fg: :white, modifiers: [:bold]},
+      alignment: :center,
+      block: %Block{
+        borders: [:all],
+        border_type: :rounded,
+        border_style: %Style{fg: :cyan}
+      }
+    }
+
+    footer = %Paragraph{
+      text: " Up/k = +1  |  Down/j = -1  |  q = quit  |  ticks every 1s",
+      style: %Style{fg: :dark_gray},
+      block: %Block{borders: [:top], border_style: %Style{fg: :dark_gray}}
+    }
+
+    [{header, header_area}, {body, body_area}, {footer, footer_area}]
+  end
+
+  @impl true
+  def update({:event, %Event.Key{code: "q", kind: "press"}}, state), do: {:stop, state}
+
+  def update({:event, %Event.Key{code: code, kind: "press"}}, state)
+      when code in ["up", "k"] do
+    {:noreply, %{state | count: state.count + 1}}
+  end
+
+  def update({:event, %Event.Key{code: code, kind: "press"}}, state)
+      when code in ["down", "j"] do
+    {:noreply, %{state | count: state.count - 1}}
+  end
+
+  def update({:info, :tick}, state) do
+    {:noreply, %{state | count: state.count + 1}}
+  end
+
+  def update(_msg, state), do: {:noreply, state}
+
+  @impl true
+  def subscriptions(_state) do
+    [Subscription.interval(:counter_tick, 1_000, :tick)]
+  end
+end
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+{:module, ReducerCounter, <<70, 79, 82, 49, 0, 0, 58, ...>>, {:subscriptions, 1}}
+```
+
+## Run it
+
+Click into the terminal below to focus it. The counter ticks up by one every second on its own (driven by the subscription); arrow keys / `j`/`k` add to it manually.
+
+```elixir
+Kino.ExRatatui.new(ReducerCounter)
+```
+
+## Bonus: a static frame
+
+`Kino.ExRatatui.frame/2` renders a one-shot `[{widget, rect}, ...]` list with no event loop and no runtime server — handy for documentation, side-by-side widget galleries via `Kino.Layout.grid/1`, or freezing a snapshot of what something looks like.
+
+```elixir
+alias ExRatatui.Layout
+alias ExRatatui.Layout.Rect
+alias ExRatatui.Style
+alias ExRatatui.Text.{Line, Span}
+alias ExRatatui.Widgets.{Bar, BarChart, Block, Paragraph}
+
+frame_rect = %Rect{x: 0, y: 0, width: 70, height: 12}
+[top, bottom] = Layout.split(frame_rect, :vertical, [{:length, 3}, {:min, 0}])
+
+Kino.ExRatatui.frame(
+  [
+    {%Paragraph{
+       alignment: :center,
+       text: %Line{
+         spans: [
+           %Span{content: "ratatui ", style: %Style{fg: :magenta, modifiers: [:bold]}},
+           %Span{content: "in your notebook ", style: %Style{fg: :white}},
+           %Span{content: "·", style: %Style{fg: :gray}},
+           %Span{
+             content: " no event loop, no server",
+             style: %Style{fg: :gray, modifiers: [:italic]}
+           }
+         ]
+       },
+       block: %Block{borders: [:all], border_style: %Style{fg: :magenta}}
+     }, top},
+    {%BarChart{
+       data: [
+         %Bar{label: "Mon", value: 12, style: %Style{fg: :cyan}},
+         %Bar{label: "Tue", value: 18, style: %Style{fg: :green}},
+         %Bar{label: "Wed", value: 9, style: %Style{fg: :yellow}},
+         %Bar{label: "Thu", value: 22, style: %Style{fg: :magenta}},
+         %Bar{label: "Fri", value: 31, style: %Style{fg: :red}}
+       ],
+       bar_width: 6,
+       bar_gap: 2,
+       block: %Block{
+         borders: [:all],
+         border_style: %Style{fg: :gray},
+         title: %Span{
+           content: " weekly stats ",
+           style: %Style{fg: :white, modifiers: [:bold]}
+         }
+       }
+     }, bottom}
+  ],
+  cols: 70,
+  rows: 12
+)
+```
+
+## Where to next
+
+* The [Reducer Runtime guide](https://hexdocs.pm/ex_ratatui/reducer_runtime.html) — full walkthrough of `init/1`, `update/2`, `subscriptions/1`, and the `commands:` / `render?:` runtime opts.
+* The original version: [`ex_ratatui/examples/reducer_counter_app.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/reducer_counter_app.exs).
+* [`examples/system_monitor.livemd`](system_monitor.livemd) — a callback-runtime dashboard with `Gauge` + `Table`.
+* [`examples/chat_interface.livemd`](chat_interface.livemd) — a callback-runtime interactive chat exercising `Markdown`, `Textarea`, `Throbber`, and `SlashCommands`.

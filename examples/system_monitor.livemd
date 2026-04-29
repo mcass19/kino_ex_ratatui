@@ -1,0 +1,425 @@
+<!-- livebook:{"persist_outputs":true} -->
+
+# kino_ex_ratatui — System Monitor
+
+```elixir
+# When iterating on kino_ex_ratatui itself, swap the line below for
+# `{:kino_ex_ratatui, path: Path.expand("..", __DIR__)}`.
+Mix.install([
+  {:kino_ex_ratatui, "~> 0.1"}
+])
+```
+
+## What this notebook shows
+
+The exact same `SystemMonitor` module that ships in [`ex_ratatui/examples/system_monitor.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/system_monitor.exs), running unmodified inside Livebook.
+
+It's an `ExRatatui.App` (callback runtime) that polls `/proc`, `/sys`, `:erlang.memory/0`, and `:inet.getifaddrs/0` every two seconds and renders the result as a dashboard with a `Gauge` per resource, a `Table` for network interfaces, and a `Paragraph` for BEAM stats.
+
+> **Note** — `/sys/class/thermal/thermal_zone0/temp`, `/proc/meminfo`, and `/proc/uptime` are Linux-only. On macOS most fields will read as `N/A` or zero; the code falls back gracefully so the dashboard still renders.
+
+## The App
+
+```elixir
+defmodule SystemMonitor do
+  use ExRatatui.App
+
+  alias ExRatatui.Event
+  alias ExRatatui.Layout
+  alias ExRatatui.Layout.Rect
+  alias ExRatatui.Style
+  alias ExRatatui.Widgets.{Block, Gauge, Paragraph, Table}
+
+  @refresh_interval 2_000
+
+  @impl true
+  def mount(_opts) do
+    schedule_refresh()
+    {:ok, collect_stats()}
+  end
+
+  @impl true
+  def handle_event(%Event.Key{code: "q", kind: "press"}, state) do
+    {:stop, state}
+  end
+
+  def handle_event(%Event.Key{code: "r", kind: "press"}, state) do
+    {:noreply, collect_stats(state)}
+  end
+
+  def handle_event(_event, state) do
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info(:refresh, state) do
+    schedule_refresh()
+    {:noreply, collect_stats(state)}
+  end
+
+  def handle_info(_msg, state) do
+    {:noreply, state}
+  end
+
+  @impl true
+  def render(state, frame) do
+    area = %Rect{x: 0, y: 0, width: frame.width, height: frame.height}
+
+    [header_area, body_area, footer_area] =
+      Layout.split(area, :vertical, [{:length, 3}, {:min, 0}, {:length, 3}])
+
+    [left_col, right_col] =
+      Layout.split(body_area, :horizontal, [{:percentage, 50}, {:percentage, 50}])
+
+    [cpu_area, mem_area, disk_area] =
+      Layout.split(left_col, :vertical, [{:length, 3}, {:length, 3}, {:length, 3}])
+
+    [net_area, beam_area] =
+      Layout.split(right_col, :vertical, [{:length, 7}, {:min, 0}])
+
+    [
+      {header_widget(state), header_area},
+      {cpu_temp_widget(state), cpu_area},
+      {memory_widget(state), mem_area},
+      {disk_widget(state), disk_area},
+      {network_widget(state), net_area},
+      {beam_widget(state), beam_area},
+      {footer_widget(), footer_area}
+    ]
+  end
+
+  ## Widgets
+
+  defp header_widget(state) do
+    %Paragraph{
+      text: "  #{state.hostname}    Uptime: #{format_uptime(state.uptime_seconds)}",
+      style: %Style{fg: :cyan, modifiers: [:bold]},
+      block: %Block{
+        title: " System Monitor ",
+        borders: [:all],
+        border_type: :rounded,
+        border_style: %Style{fg: :cyan}
+      }
+    }
+  end
+
+  defp cpu_temp_widget(state) do
+    {ratio, label, color} =
+      case state.cpu_temp do
+        nil ->
+          {0.0, "N/A", :dark_gray}
+
+        temp ->
+          r = min(temp / 85.0, 1.0)
+
+          color =
+            cond do
+              temp >= 70 -> :red
+              temp >= 55 -> :yellow
+              true -> :green
+            end
+
+          {r, "#{Float.round(temp, 1)}C", color}
+      end
+
+    %Gauge{
+      ratio: ratio,
+      label: label,
+      gauge_style: %Style{fg: color},
+      block: %Block{
+        title: " CPU Temp ",
+        borders: [:all],
+        border_type: :rounded,
+        border_style: %Style{fg: :dark_gray}
+      }
+    }
+  end
+
+  defp memory_widget(state) do
+    {ratio, label} =
+      case state.memory do
+        %{total: total, used: used} when total > 0 ->
+          {used / total, "#{format_mb(used)} / #{format_mb(total)} MB"}
+
+        _ ->
+          {0.0, "N/A"}
+      end
+
+    %Gauge{
+      ratio: ratio,
+      label: label,
+      gauge_style: %Style{fg: ratio_color(ratio)},
+      block: %Block{
+        title: " Memory ",
+        borders: [:all],
+        border_type: :rounded,
+        border_style: %Style{fg: :dark_gray}
+      }
+    }
+  end
+
+  defp disk_widget(state) do
+    {ratio, label} =
+      case state.disk do
+        %{total: total, used: used} when total > 0 ->
+          {used / total, "#{format_gb(used)} / #{format_gb(total)} GB"}
+
+        _ ->
+          {0.0, "N/A"}
+      end
+
+    %Gauge{
+      ratio: ratio,
+      label: label,
+      gauge_style: %Style{fg: ratio_color(ratio)},
+      block: %Block{
+        title: " Disk (/) ",
+        borders: [:all],
+        border_type: :rounded,
+        border_style: %Style{fg: :dark_gray}
+      }
+    }
+  end
+
+  defp network_widget(state) do
+    rows =
+      case Enum.map(state.interfaces, fn {name, ip} -> [name, ip] end) do
+        [] -> [["--", "no interfaces"]]
+        rs -> rs
+      end
+
+    %Table{
+      header: ["Interface", "IP Address"],
+      rows: rows,
+      widths: [{:percentage, 40}, {:percentage, 60}],
+      style: %Style{fg: :white},
+      block: %Block{
+        title: " Network ",
+        borders: [:all],
+        border_type: :rounded,
+        border_style: %Style{fg: :dark_gray}
+      }
+    }
+  end
+
+  defp beam_widget(state) do
+    beam = state.beam
+
+    text =
+      """
+        Processes:  #{beam.processes}
+        Ports:      #{beam.ports}
+        Total mem:  #{format_mb(beam.total_memory)} MB
+        Proc mem:   #{format_mb(beam.process_memory)} MB
+        ETS mem:    #{format_mb(beam.ets_memory)} MB
+        Atoms:      #{beam.atom_count}
+      """
+      |> String.trim_trailing()
+
+    %Paragraph{
+      text: text,
+      style: %Style{fg: :white},
+      block: %Block{
+        title: " BEAM ",
+        borders: [:all],
+        border_type: :rounded,
+        border_style: %Style{fg: :dark_gray}
+      }
+    }
+  end
+
+  defp footer_widget do
+    %Paragraph{
+      text: " q: quit  |  r: refresh",
+      style: %Style{fg: :dark_gray},
+      block: %Block{borders: [:top], border_style: %Style{fg: :dark_gray}}
+    }
+  end
+
+  defp ratio_color(r) when r >= 0.9, do: :red
+  defp ratio_color(r) when r >= 0.7, do: :yellow
+  defp ratio_color(_), do: :green
+
+  ## Data collection
+
+  defp collect_stats(prev \\ %{}) do
+    %{
+      hostname: Map.get_lazy(prev, :hostname, &read_hostname/0),
+      cpu_temp: read_cpu_temp(),
+      memory: read_memory(),
+      disk: read_disk(),
+      interfaces: read_interfaces(),
+      beam: read_beam_stats(),
+      uptime_seconds: read_uptime()
+    }
+  end
+
+  defp read_hostname do
+    case File.read("/etc/hostname") do
+      {:ok, name} -> String.trim(name)
+      _ -> to_string(:net_adm.localhost())
+    end
+  end
+
+  defp read_cpu_temp do
+    case File.read("/sys/class/thermal/thermal_zone0/temp") do
+      {:ok, content} ->
+        content |> String.trim() |> String.to_integer() |> Kernel./(1000.0)
+
+      _ ->
+        nil
+    end
+  end
+
+  defp read_memory do
+    case File.read("/proc/meminfo") do
+      {:ok, content} ->
+        info =
+          content
+          |> String.split("\n", trim: true)
+          |> Enum.reduce(%{}, fn line, acc ->
+            case String.split(line, ~r/:\s+/) do
+              [key, value | _] ->
+                case Integer.parse(value) do
+                  {kb, _} -> Map.put(acc, key, kb)
+                  :error -> acc
+                end
+
+              _ ->
+                acc
+            end
+          end)
+
+        total = Map.get(info, "MemTotal", 0)
+        available = Map.get(info, "MemAvailable", 0)
+        %{total: total * 1024, used: (total - available) * 1024}
+
+      _ ->
+        %{total: 0, used: 0}
+    end
+  end
+
+  defp read_disk do
+    output = :os.cmd(~c"df -k / 2>/dev/null") |> to_string()
+
+    case String.split(output, "\n", trim: true) do
+      [_header, data_line | _] ->
+        case String.split(data_line, ~r/\s+/) do
+          [_, total_str, used_str | _] ->
+            %{total: String.to_integer(total_str) * 1024, used: String.to_integer(used_str) * 1024}
+
+          _ ->
+            %{total: 0, used: 0}
+        end
+
+      _ ->
+        %{total: 0, used: 0}
+    end
+  rescue
+    _ -> %{total: 0, used: 0}
+  end
+
+  defp read_interfaces do
+    case :inet.getifaddrs() do
+      {:ok, addrs} ->
+        Enum.flat_map(addrs, fn {name, opts} ->
+          name_str = to_string(name)
+
+          if name_str in ["lo", "lo0"] do
+            []
+          else
+            ips =
+              opts
+              |> Keyword.get_values(:addr)
+              |> Enum.filter(fn addr -> tuple_size(addr) == 4 end)
+              |> Enum.map(&ip_to_string/1)
+
+            case ips do
+              [ip | _] -> [{name_str, ip}]
+              [] -> [{name_str, "--"}]
+            end
+          end
+        end)
+
+      _ ->
+        []
+    end
+  end
+
+  defp read_beam_stats do
+    mem = :erlang.memory()
+
+    %{
+      processes: :erlang.system_info(:process_count),
+      ports: :erlang.system_info(:port_count),
+      total_memory: Keyword.get(mem, :total, 0),
+      process_memory: Keyword.get(mem, :processes_used, 0),
+      ets_memory: Keyword.get(mem, :ets, 0),
+      atom_count: :erlang.system_info(:atom_count)
+    }
+  end
+
+  defp read_uptime do
+    case File.read("/proc/uptime") do
+      {:ok, content} ->
+        content |> String.split(" ") |> List.first() |> String.to_float() |> trunc()
+
+      _ ->
+        {uptime_ms, _} = :erlang.statistics(:wall_clock)
+        div(uptime_ms, 1000)
+    end
+  end
+
+  ## Formatting
+
+  defp format_uptime(seconds) do
+    days = div(seconds, 86400)
+    hours = div(rem(seconds, 86400), 3600)
+    mins = div(rem(seconds, 3600), 60)
+
+    cond do
+      days > 0 -> "#{days}d #{hours}h #{mins}m"
+      hours > 0 -> "#{hours}h #{mins}m"
+      true -> "#{mins}m"
+    end
+  end
+
+  defp format_mb(bytes) when is_integer(bytes),
+    do: (bytes / (1024 * 1024)) |> Float.round(1) |> to_string()
+
+  defp format_mb(_), do: "0"
+
+  defp format_gb(bytes) when is_integer(bytes),
+    do: (bytes / (1024 * 1024 * 1024)) |> Float.round(1) |> to_string()
+
+  defp format_gb(_), do: "0"
+
+  defp ip_to_string({a, b, c, d}), do: "#{a}.#{b}.#{c}.#{d}"
+
+  defp schedule_refresh, do: Process.send_after(self(), :refresh, @refresh_interval)
+end
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+{:module, SystemMonitor, <<70, 79, 82, 49, 0, 0, 129, ...>>, {:schedule_refresh, 0}}
+```
+
+## Run it
+
+Click into the terminal below to focus it. The dashboard auto-refreshes every two seconds.
+
+* `q` quits
+* `r` forces an immediate refresh
+
+```elixir
+Kino.ExRatatui.new(SystemMonitor)
+```
+
+## Where to next
+
+* The [Callback Runtime guide](https://hexdocs.pm/ex_ratatui/callback_runtime.html) — full walkthrough of `mount/1`, `render/2`, `handle_event/2`, and `handle_info/2`.
+* The original version: [`ex_ratatui/examples/system_monitor.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/system_monitor.exs).
+* [`examples/chat_interface.livemd`](chat_interface.livemd) — a longer interactive example exercising `Markdown`, `Textarea`, `Throbber`, and `SlashCommands`.
+* [`examples/reducer_counter.livemd`](reducer_counter.livemd) — the same App contract written against the reducer runtime.

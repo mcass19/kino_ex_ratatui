@@ -1,0 +1,531 @@
+<!-- livebook:{"persist_outputs":true} -->
+
+# kino_ex_ratatui — Chat Interface
+
+```elixir
+# When iterating on kino_ex_ratatui itself, swap the line below for
+# `{:kino_ex_ratatui, path: Path.expand("..", __DIR__)}`.
+Mix.install([
+  {:kino_ex_ratatui, "~> 0.1"}
+])
+```
+
+## What this notebook shows
+
+A mock AI chat interface with `Markdown` rendering, a multi-line `Textarea`, a `Throbber` for the "thinking…" indicator, a `Scrollbar`, and `/` slash-command autocomplete via a `Popup`.
+
+This is a port of [`ex_ratatui/examples/chat_interface.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/chat_interface.exs). The original drives the imperative `ExRatatui.run/1` loop with manual `poll_event`s; this version is the same logic restructured around the `ExRatatui.App` callback contract so it can run unmodified over any transport (tty, SSH, distribution, Kino).
+
+## The App
+
+````elixir
+defmodule ChatApp do
+  use ExRatatui.App
+
+  alias ExRatatui.Event
+  alias ExRatatui.Layout
+  alias ExRatatui.Layout.Rect
+  alias ExRatatui.Style
+
+  alias ExRatatui.Widgets.{
+    Block,
+    Markdown,
+    Paragraph,
+    Scrollbar,
+    Textarea,
+    Throbber,
+    WidgetList
+  }
+
+  alias ExRatatui.Widgets.SlashCommands
+  alias ExRatatui.Widgets.SlashCommands.Command
+
+  @commands [
+    %Command{name: "help", description: "Show available commands"},
+    %Command{name: "clear", description: "Clear chat history"},
+    %Command{name: "model", description: "Switch AI model"},
+    %Command{name: "system", description: "Set system prompt"},
+    %Command{name: "quit", description: "Exit the chat", aliases: ["exit", "q"]}
+  ]
+
+  @ai_responses [
+    """
+    ### Welcome!
+
+    I'm your AI assistant. Here are some things I can help with:
+
+    - **Code review** — paste code and I'll analyze it
+    - **Explanations** — ask about any concept
+    - **Debugging** — describe your issue
+
+    Try typing a message or use `/help` for commands.
+    """,
+    """
+    That's a great question! Here's a quick example:
+
+    ```elixir
+    defmodule MyApp do
+      def hello(name) do
+        "Hello, \#{name}!"
+      end
+    end
+    ```
+
+    The `defmodule` macro defines a new module. Functions are defined with `def`.
+    """,
+    """
+    Here are some **key concepts**:
+
+    1. *Pattern matching* — the `=` operator matches rather than assigns
+    2. *Immutability* — data structures are never modified in place
+    3. *Processes* — lightweight concurrent units of execution
+
+    > "Let it crash" — the OTP philosophy
+
+    Would you like me to elaborate on any of these?
+    """,
+    """
+    Sure! Let me break that down:
+
+    - First, we need to understand the **problem space**
+    - Then we can look at possible *solutions*
+    - Finally, we'll pick the best approach
+
+    The key insight is that `GenServer` gives us:
+    - State management
+    - Message passing
+    - Fault tolerance via supervisors
+
+    ---
+
+    Let me know if you need more details!
+    """
+  ]
+
+  @tick_interval 100
+  @ai_response_delay 1500
+
+  @impl true
+  def mount(_opts) do
+    state = %{
+      textarea: ExRatatui.textarea_new(),
+      messages: [{:ai, Enum.at(@ai_responses, 0)}],
+      scroll_offset: 0,
+      response_index: 1,
+      throbber_step: 0,
+      loading: false,
+      loading_started_at: nil,
+      show_autocomplete: false,
+      autocomplete_selected: 0,
+      autocomplete_matches: [],
+      size: {80, 24},
+      quit: false
+    }
+
+    {:ok, state}
+  end
+
+  ## Event handling
+
+  @impl true
+  def handle_event(%Event.Resize{width: w, height: h}, state) do
+    {:noreply, %{state | size: {w, h}}}
+  end
+
+  def handle_event(%Event.Key{code: "c", modifiers: ["ctrl"], kind: "press"}, state) do
+    {:stop, state}
+  end
+
+  def handle_event(%Event.Key{code: "q", kind: "press"} = event, state) do
+    if ExRatatui.textarea_get_value(state.textarea) == "" and not state.show_autocomplete do
+      {:stop, state}
+    else
+      state |> handle_key(event) |> maybe_stop()
+    end
+  end
+
+  def handle_event(%Event.Key{kind: "press"} = event, state) do
+    state |> handle_key(event) |> maybe_stop()
+  end
+
+  def handle_event(_event, state), do: {:noreply, state}
+
+  defp maybe_stop(%{quit: true} = state), do: {:stop, state}
+  defp maybe_stop(state), do: {:noreply, state}
+
+  ## Tick: drives throbber animation + the simulated AI response delay.
+  ## Only runs while a response is in flight.
+  @impl true
+  def handle_info(:tick, state) do
+    state =
+      if state.loading do
+        %{state | throbber_step: state.throbber_step + 1}
+      else
+        state
+      end
+
+    state = maybe_finish_loading(state)
+
+    if state.loading, do: schedule_tick()
+
+    {:noreply, state}
+  end
+
+  def handle_info(_msg, state), do: {:noreply, state}
+
+  defp schedule_tick, do: Process.send_after(self(), :tick, @tick_interval)
+
+  ## Key dispatch
+
+  defp handle_key(state, %Event.Key{code: "escape"}) do
+    if state.show_autocomplete, do: %{state | show_autocomplete: false}, else: state
+  end
+
+  defp handle_key(state, %Event.Key{code: "s", modifiers: ["ctrl"]}) do
+    submit_message(state)
+  end
+
+  defp handle_key(state, %Event.Key{code: "enter"}) do
+    if state.show_autocomplete do
+      execute_command(state)
+    else
+      ExRatatui.textarea_handle_key(state.textarea, "enter", [])
+      state
+    end
+  end
+
+  defp handle_key(state, %Event.Key{code: "up"}) do
+    if state.show_autocomplete do
+      %{state | autocomplete_selected: max(0, state.autocomplete_selected - 1)}
+    else
+      %{state | scroll_offset: max(0, state.scroll_offset - 1)}
+    end
+  end
+
+  defp handle_key(state, %Event.Key{code: "down"}) do
+    if state.show_autocomplete do
+      max_sel = max(0, length(state.autocomplete_matches) - 1)
+      %{state | autocomplete_selected: min(max_sel, state.autocomplete_selected + 1)}
+    else
+      %{state | scroll_offset: min(state.scroll_offset + 1, max_scroll_offset(state))}
+    end
+  end
+
+  defp handle_key(state, %Event.Key{code: code, modifiers: mods}) do
+    ExRatatui.textarea_handle_key(state.textarea, code, mods)
+    check_slash_command(state)
+  end
+
+  defp check_slash_command(state) do
+    case SlashCommands.parse(ExRatatui.textarea_get_value(state.textarea)) do
+      {:command, prefix} ->
+        matches = SlashCommands.match_commands(@commands, prefix)
+
+        %{
+          state
+          | show_autocomplete: matches != [],
+            autocomplete_matches: matches,
+            autocomplete_selected: 0
+        }
+
+      :no_command ->
+        %{state | show_autocomplete: false, autocomplete_matches: []}
+    end
+  end
+
+  defp submit_message(state) do
+    case state.textarea |> ExRatatui.textarea_get_value() |> String.trim() do
+      "" ->
+        state
+
+      value ->
+        ExRatatui.textarea_set_value(state.textarea, "")
+        unless state.loading, do: schedule_tick()
+
+        %{
+          state
+          | messages: state.messages ++ [{:user, value}],
+            loading: true,
+            loading_started_at: System.monotonic_time(:millisecond),
+            show_autocomplete: false
+        }
+    end
+  end
+
+  defp execute_command(state) do
+    case Enum.at(state.autocomplete_matches, state.autocomplete_selected) do
+      nil ->
+        state
+
+      %Command{name: "clear"} ->
+        ExRatatui.textarea_set_value(state.textarea, "")
+        %{state | messages: [], show_autocomplete: false, scroll_offset: 0}
+
+      %Command{name: "quit"} ->
+        ExRatatui.textarea_set_value(state.textarea, "")
+        %{state | show_autocomplete: false, quit: true}
+
+      %Command{name: "help"} ->
+        ExRatatui.textarea_set_value(state.textarea, "")
+
+        help_text = """
+        ### Available Commands
+
+        | Command | Description |
+        |---------|-------------|
+        | `/help` | Show this help message |
+        | `/clear` | Clear chat history |
+        | `/model` | Switch AI model |
+        | `/system` | Set system prompt |
+        | `/quit` | Exit the chat |
+
+        **Keyboard shortcuts:**
+        - `Ctrl+S` — send message
+        - `Enter` — new line
+        - `Ctrl+C` — quit
+        - `Up/Down` — scroll messages
+        """
+
+        %{
+          state
+          | messages: state.messages ++ [{:ai, help_text}],
+            show_autocomplete: false
+        }
+
+      %Command{name: name} ->
+        ExRatatui.textarea_set_value(state.textarea, "")
+
+        %{
+          state
+          | messages: state.messages ++ [{:ai, "Command `/#{name}` is not implemented yet."}],
+            show_autocomplete: false
+        }
+    end
+  end
+
+  defp maybe_finish_loading(%{loading: false} = state), do: state
+
+  defp maybe_finish_loading(state) do
+    elapsed = System.monotonic_time(:millisecond) - state.loading_started_at
+
+    if elapsed > @ai_response_delay do
+      response = Enum.at(@ai_responses, rem(state.response_index, length(@ai_responses)))
+      new_state = %{state | messages: state.messages ++ [{:ai, response}]}
+
+      %{
+        new_state
+        | loading: false,
+          loading_started_at: nil,
+          response_index: state.response_index + 1,
+          scroll_offset: max_scroll_offset(new_state)
+      }
+    else
+      state
+    end
+  end
+
+  ## Render
+
+  @impl true
+  def render(state, frame) do
+    area = %Rect{x: 0, y: 0, width: frame.width, height: frame.height}
+
+    [header_area, messages_area, input_area, footer_area] =
+      Layout.split(area, :vertical, [
+        {:length, 1},
+        {:min, 5},
+        {:length, 5},
+        {:length, 1}
+      ])
+
+    msg_content_area = %Rect{
+      messages_area
+      | width: messages_area.width - 1
+    }
+
+    visible_h = max(1, messages_area.height - 2)
+    total_lines = total_message_lines(state.messages)
+
+    widgets = [
+      {header_widget(), header_area},
+      {message_list(state), msg_content_area},
+      {scrollbar_widget(state, visible_h, total_lines),
+       %Rect{
+         x: messages_area.x + messages_area.width - 1,
+         y: messages_area.y,
+         width: 1,
+         height: messages_area.height
+       }},
+      {textarea_widget(state), input_area},
+      {footer_widget(), footer_area}
+    ]
+
+    widgets = if state.loading, do: widgets ++ [throbber_overlay(state, messages_area)], else: widgets
+
+    if state.show_autocomplete and state.autocomplete_matches != [] do
+      popup =
+        SlashCommands.render_autocomplete(state.autocomplete_matches,
+          area: area,
+          selected: state.autocomplete_selected,
+          percent_width: 40,
+          percent_height: 30,
+          highlight_style: %Style{fg: :black, bg: :cyan, modifiers: [:bold]}
+        )
+
+      widgets ++ popup
+    else
+      widgets
+    end
+  end
+
+  defp header_widget do
+    %Paragraph{
+      text: " 🤖 AI Chat Interface",
+      style: %Style{fg: :cyan, modifiers: [:bold]}
+    }
+  end
+
+  defp footer_widget do
+    %Paragraph{
+      text: " Ctrl+S: send | Enter: newline | /: commands | Ctrl+C: quit",
+      style: %Style{fg: :dark_gray}
+    }
+  end
+
+  defp scrollbar_widget(state, visible_h, total_lines) do
+    %Scrollbar{
+      content_length: max(1, total_lines - visible_h),
+      position: state.scroll_offset,
+      orientation: :vertical_right,
+      viewport_content_length: visible_h,
+      thumb_style: %Style{fg: :cyan},
+      track_style: %Style{fg: :dark_gray}
+    }
+  end
+
+  defp throbber_overlay(state, messages_area) do
+    {%Throbber{
+       label: " AI is thinking...",
+       step: state.throbber_step,
+       throbber_set: :braille,
+       style: %Style{fg: :yellow},
+       throbber_style: %Style{fg: :yellow, modifiers: [:bold]}
+     },
+     %Rect{
+       x: messages_area.x + 1,
+       y: messages_area.y + messages_area.height - 1,
+       width: min(30, messages_area.width - 2),
+       height: 1
+     }}
+  end
+
+  defp textarea_widget(state) do
+    %Textarea{
+      state: state.textarea,
+      style: %Style{fg: :white},
+      cursor_style: %Style{bg: :white, fg: :black},
+      placeholder: "Type a message... (Ctrl+S to send, / for commands)",
+      placeholder_style: %Style{fg: :dark_gray},
+      block: %Block{
+        title: "Message",
+        borders: [:all],
+        border_type: :rounded,
+        border_style: %Style{fg: :blue}
+      }
+    }
+  end
+
+  defp message_list(state) do
+    items =
+      Enum.flat_map(state.messages, fn
+        {:user, text} ->
+          lines = text |> String.split("\n") |> length()
+
+          [
+            {%Paragraph{
+               text: " You ",
+               style: %Style{fg: :black, bg: :green, modifiers: [:bold]}
+             }, 1},
+            {%Paragraph{text: text, style: %Style{fg: :white}, wrap: true}, max(1, lines)},
+            {%Paragraph{text: "", style: %Style{}}, 1}
+          ]
+
+        {:ai, text} ->
+          trimmed = String.trim(text)
+          lines = trimmed |> String.split("\n") |> length()
+
+          [
+            {%Paragraph{
+               text: " AI ",
+               style: %Style{fg: :black, bg: :magenta, modifiers: [:bold]}
+             }, 1},
+            {%Markdown{content: trimmed, wrap: true}, max(1, lines)},
+            {%Paragraph{text: "", style: %Style{}}, 1}
+          ]
+      end)
+
+    %WidgetList{
+      items: items,
+      scroll_offset: state.scroll_offset,
+      block: %Block{
+        title: "Chat (#{length(state.messages)} messages)",
+        borders: [:all],
+        border_type: :rounded,
+        border_style: %Style{fg: :dark_gray}
+      }
+    }
+  end
+
+  ## Scroll math
+  ##
+  ## We track the latest terminal size in `state.size` via the Resize
+  ## event handler above. The layout matches `render/2`: header(1) +
+  ## input(5) + footer(1) = 7 fixed rows around the message area, and
+  ## the message area's WidgetList block adds 2 rows of borders, so the
+  ## visible content height is `h - 7 - 2`.
+  defp max_scroll_offset(state) do
+    {_w, h} = state.size
+    visible_h = max(1, h - 7 - 2)
+    max(0, total_message_lines(state.messages) - visible_h)
+  end
+
+  defp total_message_lines(messages) do
+    Enum.reduce(messages, 0, fn
+      {:user, text}, acc ->
+        acc + 1 + max(1, text |> String.split("\n") |> length()) + 1
+
+      {:ai, text}, acc ->
+        acc + 1 + max(1, text |> String.trim() |> String.split("\n") |> length()) + 1
+    end)
+  end
+end
+````
+
+<!-- livebook:{"output":true} -->
+
+```
+{:module, ChatApp, <<70, 79, 82, 49, 0, 0, 142, ...>>, {:total_message_lines, 1}}
+```
+
+## Run it
+
+Click into the terminal below to focus it, then:
+
+* Type a message and press **Ctrl+S** to send
+* **Enter** inserts a newline inside the textarea
+* Type **/** to open the command popup; **Up/Down** + **Enter** to pick one
+* **Up/Down** (when no popup is open) scrolls the message history
+* **q** (when the textarea is empty) or **Ctrl+C** quits
+
+Try `/help` for the full command list, `/clear` to wipe history, or just chat — the "AI" cycles through canned Markdown responses with a 1.5s delay so you can see the throbber animate.
+
+```elixir
+Kino.ExRatatui.new(ChatApp)
+```
+
+## Where to next
+
+* The [Callback Runtime guide](https://hexdocs.pm/ex_ratatui/callback_runtime.html) — full walkthrough of `mount/1`, `render/2`, `handle_event/2`, and `handle_info/2`.
+* The original version: [`ex_ratatui/examples/chat_interface.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/chat_interface.exs).
+* [`examples/system_monitor.livemd`](system_monitor.livemd) — a callback-runtime dashboard with `Gauge` + `Table`.
+* [`examples/reducer_counter.livemd`](reducer_counter.livemd) — the same App contract written against the reducer runtime, with subscriptions.

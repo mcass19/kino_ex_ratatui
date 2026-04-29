@@ -4,9 +4,9 @@
 [![Docs](https://img.shields.io/badge/hex-docs-blue)](https://hexdocs.pm/kino_ex_ratatui)
 [![License](https://img.shields.io/hexpm/l/kino_ex_ratatui.svg)](https://github.com/mcass19/kino_ex_ratatui/blob/main/LICENSE)
 
-Run [ExRatatui](https://github.com/mcass19/ex_ratatui) apps inside [Livebook](https://livebook.dev) notebooks via.
+Run [ExRatatui](https://github.com/mcass19/ex_ratatui) apps inside [Livebook](https://livebook.dev) notebooks.
 
-The same `ExRatatui.App` module that runs over the local tty, SSH, or Erlang distribution now runs in a notebook cell. `KinoExRatatui` is a byte-stream transport that pipes the runtime's rendered ANSI through xterm.js and forwards keypresses and resize events back — implemented as a `Kino.JS.Live` widget on top of `ExRatatui.Transport.ByteStream`.
+The same `ExRatatui.App` module that runs over the local tty, SSH, or Erlang distribution now runs in a notebook cell. `KinoExRatatui` is a byte-stream transport that pipes the runtime's rendered ANSI through xterm.js and forwards keypresses and resize events back. Implemented as a `Kino.JS.Live` widget on top of `ExRatatui.Transport.ByteStream`.
 
 ## Features
 
@@ -61,7 +61,11 @@ end
 Kino.ExRatatui.new(Counter)
 ```
 
-A full notebook example lives at [`livebook/counter.livemd`](https://github.com/mcass19/kino_ex_ratatui/blob/main/livebook/counter.livemd) — open it in Livebook and run the cells.
+Three notebook examples live under [`examples/`](https://github.com/mcass19/kino_ex_ratatui/tree/main/examples) — open them in Livebook and run the cells:
+
+- [`system_monitor.livemd`](https://github.com/mcass19/kino_ex_ratatui/blob/main/examples/system_monitor.livemd) — a callback-runtime dashboard with `Gauge` + `Table` that reads `/proc`, `/sys`, and BEAM stats every two seconds. Drop-in port of the [`ex_ratatui` example](https://github.com/mcass19/ex_ratatui/blob/main/examples/system_monitor.exs).
+- [`chat_interface.livemd`](https://github.com/mcass19/kino_ex_ratatui/blob/main/examples/chat_interface.livemd) — a mock AI chat exercising `Markdown`, `Textarea`, `Throbber`, `Scrollbar`, and `/` slash-command autocomplete via a `Popup`.
+- [`reducer_counter.livemd`](https://github.com/mcass19/kino_ex_ratatui/blob/main/examples/reducer_counter.livemd) — the same App contract written against the reducer runtime, plus a `Subscription.interval` that ticks the counter every second.
 
 ## Static frames
 
@@ -88,7 +92,7 @@ Kino.ExRatatui.frame(
 
 ## How it works
 
-`KinoExRatatui` implements `ExRatatui.Transport` as a byte-stream transport — the same shape as the built-in SSH transport and the [TCP example in the Custom Transports guide](https://hexdocs.pm/ex_ratatui/custom_transports.html). The wiring:
+`KinoExRatatui` implements `ExRatatui.Transport` as a byte-stream transport — the same shape as the built-in SSH transport. The wiring:
 
 ```
 xterm.js (iframe)            Kino.ExRatatui (Kino.JS.Live)         ExRatatui.Server

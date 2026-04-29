@@ -38,7 +38,7 @@ mix test --cover        # must report 100.00% Total
 
 The suite uses `Kino.Test`'s `configure_livebook_bridge` setup to drive the live widget end-to-end without a real browser.
 
-For the actual browser smoke test, open `livebook/counter.livemd` in Livebook and run the cells.
+For the actual browser smoke test, open one of the notebooks under `examples/` in Livebook and run the cells.
 
 ## Bundling the JS
 
