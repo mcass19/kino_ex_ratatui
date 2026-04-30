@@ -1,5 +1,3 @@
-<!-- livebook:{"persist_outputs":true} -->
-
 # kino_ex_ratatui — Reducer Counter
 
 ```elixir
@@ -95,12 +93,6 @@ defmodule ReducerCounter do
     [Subscription.interval(:counter_tick, 1_000, :tick)]
   end
 end
-```
-
-<!-- livebook:{"output":true} -->
-
-```
-{:module, ReducerCounter, <<70, 79, 82, 49, 0, 0, 58, ...>>, {:subscriptions, 1}}
 ```
 
 ## Run it

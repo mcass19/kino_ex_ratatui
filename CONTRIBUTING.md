@@ -2,9 +2,7 @@
 
 Thanks for your interest in contributing!
 
-KinoExRatatui is a pure Elixir project built on [ExRatatui](https://github.com/mcass19/ex_ratatui).
-
-Feel free to also consider contributing on the upstream library if you're missing a feature, or something is not working. Contributions are welcome everywhere!
+KinoExRatatui is built on [ExRatatui](https://github.com/mcass19/ex_ratatui). Feel free to also consider contributing on the upstream library if you're missing a feature, or something is not working. Contributions are welcome everywhere!
 
 This guide will help you get set up.
 

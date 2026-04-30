@@ -1,5 +1,3 @@
-<!-- livebook:{"persist_outputs":true} -->
-
 # kino_ex_ratatui — System Monitor
 
 ```elixir
@@ -398,12 +396,6 @@ defmodule SystemMonitor do
 
   defp schedule_refresh, do: Process.send_after(self(), :refresh, @refresh_interval)
 end
-```
-
-<!-- livebook:{"output":true} -->
-
-```
-{:module, SystemMonitor, <<70, 79, 82, 49, 0, 0, 129, ...>>, {:schedule_refresh, 0}}
 ```
 
 ## Run it

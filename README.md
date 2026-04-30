@@ -2,18 +2,29 @@
 
 [![Hex.pm](https://img.shields.io/hexpm/v/kino_ex_ratatui.svg)](https://hex.pm/packages/kino_ex_ratatui)
 [![Docs](https://img.shields.io/badge/hex-docs-blue)](https://hexdocs.pm/kino_ex_ratatui)
+[![CI](https://github.com/mcass19/kino_ex_ratatui/actions/workflows/ci.yml/badge.svg)](https://github.com/mcass19/kino_ex_ratatui/actions/workflows/ci.yml)
 [![License](https://img.shields.io/hexpm/l/kino_ex_ratatui.svg)](https://github.com/mcass19/kino_ex_ratatui/blob/main/LICENSE)
 
 Run [ExRatatui](https://github.com/mcass19/ex_ratatui) apps inside [Livebook](https://livebook.dev) notebooks.
 
-The same `ExRatatui.App` module that runs over the local tty, SSH, or Erlang distribution now runs in a notebook cell. `KinoExRatatui` is a byte-stream transport that pipes the runtime's rendered ANSI through xterm.js and forwards keypresses and resize events back. Implemented as a `Kino.JS.Live` widget on top of `ExRatatui.Transport.ByteStream`.
+![KinoExRatatui Demo](https://raw.githubusercontent.com/mcass19/kino_ex_ratatui/main/assets/demo.gif)
+
+`KinoExRatatui` is a byte-stream transport that pipes the runtime's rendered ANSI through xterm.js and forwards keypresses and resize events back. Implemented as a `Kino.JS.Live` widget on top of `ExRatatui.Transport.ByteStream`.
 
 ## Features
 
 - **Same App, same surface** — any module implementing `ExRatatui.App` runs unchanged.
 - **Responsive sizing** — xterm.js's `FitAddon` derives cell dimensions and reports resize events; the App sees them as `%ExRatatui.Event.Resize{}` in `handle_event/2`.
-- **Static frames** — `Kino.ExRatatui.frame/2` renders a one-shot `[{widget, rect}, ...]` list and ships the bytes to xterm.js. Useful for documentation, side-by-side comparisons via `Kino.Layout.grid/1`, and screenshots.
+- **Static frames** — `Kino.ExRatatui.frame/2` renders a one-shot `[{widget, rect}, ...]` list and ships the bytes to xterm.js. Useful for documentation, side-by-side comparisons via `Kino.Layout.grid/1`, screenshots, etc.
 - **Zero browser-side state on cell re-eval** — re-running the cell tears the runtime down and starts a fresh one, matching every other `Kino.JS.Live` widget.
+
+## Examples
+
+Three notebook examples live under [`examples/`](https://github.com/mcass19/kino_ex_ratatui/tree/main/examples) — open them in Livebook and run the cells:
+
+- [`system_monitor.livemd`](https://github.com/mcass19/kino_ex_ratatui/blob/main/examples/system_monitor.livemd) — a callback-runtime dashboard with `Gauge` + `Table` that reads `/proc`, `/sys`, and BEAM stats every two seconds. Drop-in port of the [`ex_ratatui` example](https://github.com/mcass19/ex_ratatui/blob/main/examples/system_monitor.exs).
+- [`chat_interface.livemd`](https://github.com/mcass19/kino_ex_ratatui/blob/main/examples/chat_interface.livemd) — a mock AI chat exercising `Markdown`, `Textarea`, `Throbber`, `Scrollbar`, and `/` slash-command autocomplete via a `Popup`.
+- [`reducer_counter.livemd`](https://github.com/mcass19/kino_ex_ratatui/blob/main/examples/reducer_counter.livemd) — the same App contract written against the reducer runtime, plus a `Subscription.interval` that ticks the counter every second.
 
 ## Installation
 
@@ -61,15 +72,7 @@ end
 Kino.ExRatatui.new(Counter)
 ```
 
-Three notebook examples live under [`examples/`](https://github.com/mcass19/kino_ex_ratatui/tree/main/examples) — open them in Livebook and run the cells:
-
-- [`system_monitor.livemd`](https://github.com/mcass19/kino_ex_ratatui/blob/main/examples/system_monitor.livemd) — a callback-runtime dashboard with `Gauge` + `Table` that reads `/proc`, `/sys`, and BEAM stats every two seconds. Drop-in port of the [`ex_ratatui` example](https://github.com/mcass19/ex_ratatui/blob/main/examples/system_monitor.exs).
-- [`chat_interface.livemd`](https://github.com/mcass19/kino_ex_ratatui/blob/main/examples/chat_interface.livemd) — a mock AI chat exercising `Markdown`, `Textarea`, `Throbber`, `Scrollbar`, and `/` slash-command autocomplete via a `Popup`.
-- [`reducer_counter.livemd`](https://github.com/mcass19/kino_ex_ratatui/blob/main/examples/reducer_counter.livemd) — the same App contract written against the reducer runtime, plus a `Subscription.interval` that ticks the counter every second.
-
 ## Static frames
-
-For documentation and side-by-side widget comparisons:
 
 ```elixir
 alias ExRatatui.Layout.Rect
