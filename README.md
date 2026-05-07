@@ -16,6 +16,7 @@ Run [ExRatatui](https://github.com/mcass19/ex_ratatui) apps inside [Livebook](ht
 - **Same App, same surface** — any module implementing `ExRatatui.App` runs unchanged.
 - **Responsive sizing** — xterm.js's `FitAddon` derives cell dimensions and reports resize events; the App sees them as `%ExRatatui.Event.Resize{}` in `handle_event/2`.
 - **Static frames** — `Kino.ExRatatui.frame/2` renders a one-shot `[{widget, rect}, ...]` list and ships the bytes to xterm.js. Useful for documentation, side-by-side comparisons via `Kino.Layout.grid/1`, screenshots, etc.
+- **Themeable** — pass `:theme`, `:font_family`, `:font_size`, `:height`, `:cursor_blink`, `:scrollback`, and `:stopped_message` to `new/2` (or the static-friendly subset to `frame/2`) to override the defaults per cell. The `:theme` map is the full xterm.js [`ITheme`](https://xtermjs.org/docs/api/terminal/interfaces/itheme/) — 16 ANSI colors, selection, cursor accents, the lot.
 - **Zero browser-side state on cell re-eval** — re-running the cell tears the runtime down and starts a fresh one, matching every other `Kino.JS.Live` widget.
 - **Telemetry** — `[:kino_ex_ratatui, :transport, :connect | :disconnect]`, `[:kino_ex_ratatui, :render, :frame]`, `[:kino_ex_ratatui, :input, :forward]`, and `[:kino_ex_ratatui, :resize]` events sit one layer above `ex_ratatui`'s own runtime/render telemetry. See the [Telemetry guide](https://hexdocs.pm/kino_ex_ratatui/telemetry.html) for the full event catalogue and a `Telemetry.Metrics` example.
 

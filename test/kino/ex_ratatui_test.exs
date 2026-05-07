@@ -5,6 +5,7 @@ defmodule Kino.ExRatatuiTest do
   import Kino.Test
 
   alias ExRatatui.Runtime
+  alias Kino.JS.DataStore
   alias KinoExRatatui.Test.{Counter, CrashingMount}
 
   doctest Kino.ExRatatui
@@ -49,17 +50,42 @@ defmodule Kino.ExRatatuiTest do
     end
 
     test "stores caller-supplied mount_opts verbatim in assigns" do
-      kino = Kino.ExRatatui.new(Counter, theme: :dark, start: 10)
+      kino = Kino.ExRatatui.new(Counter, start: 10, label: "demo")
       on_exit_stop(kino)
 
-      assert assigns(kino).mount_opts == [theme: :dark, start: 10]
+      assert assigns(kino).mount_opts == [start: 10, label: "demo"]
     end
 
-    test "handle_connect returns an empty payload (the JS drives initialization)" do
+    test "strips reserved display + runtime keys from mount_opts" do
+      kino =
+        Kino.ExRatatui.new(Counter,
+          start: 10,
+          font_size: 14,
+          height: "600px",
+          theme: %{background: "#000"},
+          name: :ignored,
+          transport: :ignored
+        )
+
+      on_exit_stop(kino)
+
+      # Only non-reserved keys reach the App's mount_opts.
+      assert assigns(kino).mount_opts == [start: 10]
+    end
+
+    test "handle_connect returns the display payload" do
       kino = Kino.ExRatatui.new(Counter)
       on_exit_stop(kino)
 
-      assert connect(kino) == %{}
+      payload = connect(kino)
+
+      assert is_map(payload)
+      assert payload.font_size == 13
+      assert payload.height == "400px"
+      assert payload.cursor_blink == true
+      assert is_binary(payload.font_family)
+      assert is_map(payload.theme)
+      assert is_binary(payload.stopped_message)
     end
   end
 
@@ -225,6 +251,192 @@ defmodule Kino.ExRatatuiTest do
 
         assert_receive {:DOWN, ^ref, :process, _, _reason}, 500
       end)
+    end
+  end
+
+  describe "display options" do
+    test "defaults are applied when no display opts are given" do
+      kino = Kino.ExRatatui.new(Counter)
+      on_exit_stop(kino)
+
+      display = assigns(kino).display
+
+      assert display.font_size == 13
+      assert display.height == "400px"
+      assert display.cursor_blink == true
+      assert display.scrollback == 1000
+      assert String.contains?(display.font_family, "monospace")
+      assert display.theme.background == "#1e1e2e"
+      assert display.stopped_message =~ "re-evaluate"
+    end
+
+    test "user-supplied display opts override defaults and merge into the payload" do
+      kino =
+        Kino.ExRatatui.new(Counter,
+          theme: %{background: "#0d1117", foreground: "#c9d1d9"},
+          font_family: "Fira Code, monospace",
+          font_size: 14,
+          height: "600px",
+          cursor_blink: false,
+          scrollback: 5000,
+          stopped_message: "Bye!"
+        )
+
+      on_exit_stop(kino)
+
+      display = assigns(kino).display
+      assert display.font_size == 14
+      assert display.height == "600px"
+      assert display.cursor_blink == false
+      assert display.scrollback == 5000
+      assert display.font_family == "Fira Code, monospace"
+      assert display.theme == %{background: "#0d1117", foreground: "#c9d1d9"}
+      assert display.stopped_message == "Bye!"
+
+      # And the JS hook sees the same payload.
+      assert connect(kino) == display
+    end
+
+    test "custom :stopped_message flows into the broadcast painted on server :DOWN" do
+      kino = Kino.ExRatatui.new(Counter, stopped_message: "byebye-#{:rand.uniform(99_999)}")
+      on_exit_stop(kino)
+
+      push_event(kino, "resize", %{"cols" => 80, "rows" => 24})
+      assert_broadcast_event(kino, "ansi", {:binary, %{}, _initial})
+
+      message = assigns(kino).display.stopped_message
+      push_event(kino, "input", {:binary, %{}, "q"})
+
+      assert_broadcast_event(kino, "ansi", {:binary, %{}, payload}, 500)
+      assert payload =~ message
+      refute payload =~ "re-evaluate"
+    end
+
+    test "validation: :theme must be a map" do
+      assert_raise ArgumentError, ~r/`:theme`: :dark/, fn ->
+        Kino.ExRatatui.new(Counter, theme: :dark)
+      end
+    end
+
+    test "validation: :font_family must be a non-empty binary" do
+      assert_raise ArgumentError, ~r/`:font_family`/, fn ->
+        Kino.ExRatatui.new(Counter, font_family: "")
+      end
+    end
+
+    test "validation: :font_size must be a positive integer" do
+      assert_raise ArgumentError, ~r/`:font_size`/, fn ->
+        Kino.ExRatatui.new(Counter, font_size: 0)
+      end
+    end
+
+    test "validation: :height must be a non-empty binary" do
+      assert_raise ArgumentError, ~r/`:height`/, fn ->
+        Kino.ExRatatui.new(Counter, height: 400)
+      end
+    end
+
+    test "validation: :cursor_blink must be a boolean" do
+      assert_raise ArgumentError, ~r/`:cursor_blink`/, fn ->
+        Kino.ExRatatui.new(Counter, cursor_blink: "yes")
+      end
+    end
+
+    test "validation: :scrollback must be a non-negative integer" do
+      assert_raise ArgumentError, ~r/`:scrollback`/, fn ->
+        Kino.ExRatatui.new(Counter, scrollback: -1)
+      end
+    end
+
+    test "validation: :stopped_message must be a binary" do
+      assert_raise ArgumentError, ~r/`:stopped_message`/, fn ->
+        Kino.ExRatatui.new(Counter, stopped_message: nil)
+      end
+    end
+  end
+
+  describe "frame/2 display options" do
+    defp simple_widgets do
+      [
+        {%ExRatatui.Widgets.Paragraph{text: "hi"},
+         %ExRatatui.Layout.Rect{x: 0, y: 0, width: 10, height: 1}}
+      ]
+    end
+
+    # Static `Kino.JS` widgets have no `:pid` field, so `Kino.Test.connect/2`
+    # doesn't work. Roll our own: the payload lives in `Kino.JS.DataStore`,
+    # which speaks the same `{:connect, _, %{ref, origin}}` protocol the live
+    # widget speaks.
+    defp connect_static(%Kino.JS{ref: ref}) do
+      pid = DataStore.cross_node_name()
+      send(pid, {:connect, self(), %{ref: ref, origin: inspect(self())}})
+      assert_receive {:connect_reply, data, %{ref: ^ref}}, 200
+      data
+    end
+
+    test "merges :theme / :font_family / :font_size into the static info map" do
+      kino =
+        Kino.ExRatatui.frame(simple_widgets(),
+          cols: 40,
+          rows: 5,
+          theme: %{background: "#000"},
+          font_family: "Fira Code, monospace",
+          font_size: 16
+        )
+
+      assert {:binary, info, _bytes} = connect_static(kino)
+      assert info.cols == 40
+      assert info.rows == 5
+      assert info.mode == "static"
+      assert info.theme == %{background: "#000"}
+      assert info.font_family == "Fira Code, monospace"
+      assert info.font_size == 16
+    end
+
+    test "without display opts the info map carries only cols/rows/mode + defaults" do
+      kino = Kino.ExRatatui.frame(simple_widgets(), cols: 40, rows: 5)
+
+      assert {:binary, info, _bytes} = connect_static(kino)
+      # The static-friendly subset of defaults always rides along so JS
+      # doesn't have to special-case the absent-config path.
+      assert info.cols == 40
+      assert info.rows == 5
+      assert info.mode == "static"
+      assert is_map(info.theme)
+      assert is_binary(info.font_family)
+      assert is_integer(info.font_size)
+    end
+
+    test "rejects live-only display opts" do
+      assert_raise ArgumentError, ~r/unknown option `:height`/, fn ->
+        Kino.ExRatatui.frame(simple_widgets(), height: "600px")
+      end
+
+      assert_raise ArgumentError, ~r/unknown option `:cursor_blink`/, fn ->
+        Kino.ExRatatui.frame(simple_widgets(), cursor_blink: false)
+      end
+    end
+
+    test "rejects unknown opts (catches typos in :col vs :cols)" do
+      assert_raise ArgumentError, ~r/unknown option `:col`/, fn ->
+        Kino.ExRatatui.frame(simple_widgets(), col: 40)
+      end
+    end
+
+    test "validates :cols / :rows are positive integers" do
+      assert_raise ArgumentError, ~r/`:cols` must be a positive integer/, fn ->
+        Kino.ExRatatui.frame(simple_widgets(), cols: 0)
+      end
+
+      assert_raise ArgumentError, ~r/`:rows` must be a positive integer/, fn ->
+        Kino.ExRatatui.frame(simple_widgets(), rows: -1)
+      end
+    end
+
+    test "validates :theme is a map (same vocabulary as new/2)" do
+      assert_raise ArgumentError, ~r/`:theme`: :dark/, fn ->
+        Kino.ExRatatui.frame(simple_widgets(), theme: :dark)
+      end
     end
   end
 

@@ -28,12 +28,42 @@ defmodule Kino.ExRatatui do
 
       Kino.ExRatatui.new(Counter)
 
-  ## Options
+  ## Mount options
 
-  The second argument is a keyword list passed straight to
-  `c:ExRatatui.App.mount/1`. Use it for any per-instance configuration
-  your App reads from its mount opts. The keys `:mod`, `:name`, and
-  `:transport` are reserved by the runtime and silently overwritten.
+  The second argument to `new/2` is a keyword list. Any key not listed
+  under [Display options](#module-display-options) below is forwarded
+  verbatim to `c:ExRatatui.App.mount/1`. Use it for per-instance
+  configuration your App reads from its mount opts.
+
+  The keys `:mod`, `:name`, and `:transport` are reserved by the
+  runtime and silently overwritten.
+
+  ## Display options
+
+  Reserved opts that configure the xterm.js iframe rather than the App.
+  All are optional; defaults preserve the current widget look. Unknown
+  values raise `ArgumentError` at the call site.
+
+  | Option | Type | Default | Notes |
+  | ------ | ---- | ------- | ----- |
+  | `:theme` | `map()` | catppuccin-style dark theme | Forwarded to xterm.js's `Terminal({theme: ...})`. Accepts the full xterm.js [`ITheme`](https://xtermjs.org/docs/api/terminal/interfaces/itheme/) object — `:background`, `:foreground`, `:cursor`, `:cursorAccent`, `:selectionBackground`, `:black`/`:red`/.../`:brightWhite`, etc. Atom keys are JSON-encoded as strings; use the camelCase that xterm.js expects (`cursorAccent`, not `cursor_accent`). |
+  | `:font_family` | `String.t()` | `"ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"` | CSS `font-family` value. Anything `xterm.js` can render. |
+  | `:font_size` | `pos_integer()` | `13` | Cell font size in px. |
+  | `:height` | `String.t()` | `"400px"` | CSS height applied to the xterm container. Accepts any valid CSS length (`"600px"`, `"60vh"`, …). |
+  | `:cursor_blink` | `boolean()` | `true` | xterm.js cursor blink. |
+  | `:scrollback` | `non_neg_integer()` | `1000` | xterm.js scrollback line limit. |
+  | `:stopped_message` | `String.t()` | `"App stopped — re-evaluate the cell to start a new run."` | Shown in the iframe after the runtime exits (`{:stop, _}` or `mount/1` failure). |
+
+  Example:
+
+      Kino.ExRatatui.new(Counter,
+        # mount opts → App.mount/1
+        start: 10,
+        # display opts → xterm.js
+        theme: %{background: "#0d1117", foreground: "#c9d1d9"},
+        font_size: 14,
+        height: "600px"
+      )
 
   ## Lifecycle
 
@@ -66,13 +96,23 @@ defmodule Kino.ExRatatui do
   alias Kino.JS, as: KinoJS
   alias Kino.JS.Live, as: KinoLive
 
-  # Painted into the iframe when the runtime server exits. Unlike SSH
-  # (where the alt-screen leave sequence restores the user's shell),
-  # an xterm.js iframe has no shell behind it — leaving alt-screen
-  # would just show an empty buffer. So we clear the screen, reset
-  # SGR, and write a small stopped-state message instead.
-  @stopped_screen "\e[2J\e[H\e[0m\r\n" <>
-                    "  \e[2m\e[3mApp stopped — re-evaluate the cell to start a new run.\e[0m\r\n"
+  # Display defaults. Kept in one map so the public moduledoc, the
+  # validators, and the JS payload all read from the same source. JS
+  # has its own copy of these (see `assets/js/main.js`) for the case
+  # where Elixir didn't supply them — keep the two in sync.
+  @default_display %{
+    theme: %{background: "#1e1e2e", foreground: "#cdd6f4", cursor: "#f5e0dc"},
+    font_family: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    font_size: 13,
+    height: "400px",
+    cursor_blink: true,
+    scrollback: 1000,
+    stopped_message: "App stopped — re-evaluate the cell to start a new run."
+  }
+
+  @display_keys Map.keys(@default_display)
+
+  @reserved_runtime_keys [:mod, :name, :transport]
 
   # Defaults for `frame/2`. Mirrors the canonical 80×24 terminal so
   # callers who just want a screenshot of a few widgets don't have to
@@ -80,20 +120,38 @@ defmodule Kino.ExRatatui do
   @default_cols 80
   @default_rows 24
 
+  # Static frames support a subset of display opts — anything tied to
+  # the live event loop (cursor blink, scrollback, stopped-state UI)
+  # has nothing to apply against.
+  @static_display_keys [:theme, :font_family, :font_size]
+
   @doc """
   Builds a new live kino that hosts `mod` (an `ExRatatui.App`).
 
-  `mount_opts` is forwarded verbatim to `c:ExRatatui.App.mount/1`, so an
-  App can do per-instance setup the same way it would over SSH.
+  `opts` is split into [Display options](#module-display-options)
+  consumed by the widget itself and [Mount options](#module-mount-options)
+  forwarded verbatim to `c:ExRatatui.App.mount/1`. Reserved display
+  keys never reach the App.
 
   ## Examples
 
+      # Plain
       Kino.ExRatatui.new(Counter)
-      Kino.ExRatatui.new(Counter, start: 10, theme: :dark)
+
+      # Mount opt forwarded to mount/1
+      Kino.ExRatatui.new(Counter, start: 10)
+
+      # Display opt + mount opt
+      Kino.ExRatatui.new(Counter,
+        start: 10,
+        theme: %{background: "#0d1117", foreground: "#c9d1d9"},
+        font_size: 14
+      )
   """
   @spec new(module(), keyword()) :: KinoLive.t()
-  def new(mod, mount_opts \\ []) when is_atom(mod) and is_list(mount_opts) do
-    KinoLive.new(__MODULE__, {mod, mount_opts})
+  def new(mod, opts \\ []) when is_atom(mod) and is_list(opts) do
+    {display, mount_opts} = extract_display_opts(opts)
+    KinoLive.new(__MODULE__, {mod, mount_opts, display})
   end
 
   @doc """
@@ -110,6 +168,15 @@ defmodule Kino.ExRatatui do
 
     * `:cols` — terminal width in cells. Defaults to `#{@default_cols}`.
     * `:rows` — terminal height in cells. Defaults to `#{@default_rows}`.
+    * `:theme` — see [Display options](#module-display-options). Same
+      defaults as `new/2`.
+    * `:font_family` — same.
+    * `:font_size` — same.
+
+  Live-only display opts (`:height`, `:cursor_blink`, `:scrollback`,
+  `:stopped_message`) are not accepted here and will raise
+  `ArgumentError` — they have nothing to apply against in a static
+  one-shot frame.
 
   ## Examples
 
@@ -131,8 +198,7 @@ defmodule Kino.ExRatatui do
   """
   @spec frame([{ExRatatui.widget(), ExRatatui.Layout.Rect.t()}], keyword()) :: KinoJS.t()
   def frame(widgets, opts \\ []) when is_list(widgets) and is_list(opts) do
-    cols = Keyword.get(opts, :cols, @default_cols)
-    rows = Keyword.get(opts, :rows, @default_rows)
+    {cols, rows, display} = extract_frame_opts(opts)
 
     session = Session.new(cols, rows)
 
@@ -140,7 +206,13 @@ defmodule Kino.ExRatatui do
       case Session.draw(session, widgets) do
         :ok ->
           bytes = Session.take_output(session)
-          KinoJS.new(__MODULE__, {:binary, %{cols: cols, rows: rows, mode: "static"}, bytes})
+
+          info =
+            display
+            |> Map.take(@static_display_keys)
+            |> Map.merge(%{cols: cols, rows: rows, mode: "static"})
+
+          KinoJS.new(__MODULE__, {:binary, info, bytes})
 
         {:error, reason} ->
           raise ArgumentError, "Kino.ExRatatui.frame/2: render failed — #{inspect(reason)}"
@@ -153,11 +225,12 @@ defmodule Kino.ExRatatui do
   ## Kino.JS.Live callbacks
 
   @impl true
-  def init({mod, mount_opts}, ctx) do
+  def init({mod, mount_opts, display}, ctx) do
     {:ok,
      assign(ctx,
        mod: mod,
        mount_opts: mount_opts,
+       display: display,
        session: nil,
        server: nil,
        server_ref: nil
@@ -168,8 +241,10 @@ defmodule Kino.ExRatatui do
   def handle_connect(ctx) do
     # JS side drives initialization — it sends a "resize" event with the
     # cell dimensions reported by FitAddon as soon as it's mounted, and
-    # that's what boots the Session + runtime server.
-    {:ok, %{}, ctx}
+    # that's what boots the Session + runtime server. The payload here
+    # carries the display config so the JS hook can theme/size xterm.js
+    # before that first resize fires.
+    {:ok, ctx.assigns.display, ctx}
   end
 
   @impl true
@@ -204,7 +279,13 @@ defmodule Kino.ExRatatui do
     # with the cursor sitting on it. Then drop the server refs so we
     # don't try to stop a dead process from terminate/2.
     Telemetry.execute([:transport, :disconnect], %{}, %{mod: ctx.assigns.mod, reason: reason})
-    broadcast_event(ctx, "ansi", {:binary, %{}, @stopped_screen})
+
+    broadcast_event(
+      ctx,
+      "ansi",
+      {:binary, %{}, build_stopped_screen(ctx.assigns.display.stopped_message)}
+    )
+
     {:noreply, assign(ctx, session: nil, server: nil, server_ref: nil)}
   end
 
@@ -273,5 +354,93 @@ defmodule Kino.ExRatatui do
     Telemetry.execute([:resize], %{}, %{mod: ctx.assigns.mod, width: cols, height: rows})
     ByteStream.forward_resize(session, ctx.assigns.server, cols, rows)
     ctx
+  end
+
+  ## Display options
+
+  # Splits user opts into {display_map, mount_opts_keyword}. Reserved
+  # display + runtime keys are stripped from the keyword list before it
+  # reaches `App.mount/1` — apps never see them as mount opts.
+  defp extract_display_opts(opts) do
+    display = build_display_map(opts)
+
+    mount_opts =
+      Enum.reject(opts, fn {k, _v} ->
+        k in @display_keys or k in @reserved_runtime_keys
+      end)
+
+    {display, mount_opts}
+  end
+
+  # frame/2 is non-live, so it accepts only `:cols`, `:rows`, and the
+  # static-mode-friendly subset of display opts. Anything else
+  # (`:height`, `:cursor_blink`, `:scrollback`, `:stopped_message`,
+  # plus arbitrary mount-opt-like keys) raises so callers don't
+  # silently lose configuration. `:mode` is reserved for the JS payload
+  # discriminator.
+  defp extract_frame_opts(opts) do
+    valid_keys = [:cols, :rows | @static_display_keys]
+
+    case Enum.find(opts, fn {k, _v} -> k not in valid_keys end) do
+      nil ->
+        cols = validate_dim!(:cols, Keyword.get(opts, :cols, @default_cols))
+        rows = validate_dim!(:rows, Keyword.get(opts, :rows, @default_rows))
+        display = build_display_map(opts)
+        {cols, rows, display}
+
+      {bad_key, _} ->
+        raise ArgumentError,
+              "Kino.ExRatatui.frame/2: unknown option `#{inspect(bad_key)}`. " <>
+                "Supported: #{inspect(valid_keys)}"
+    end
+  end
+
+  defp validate_dim!(_key, value) when is_integer(value) and value > 0, do: value
+
+  defp validate_dim!(key, value) do
+    raise ArgumentError,
+          "Kino.ExRatatui.frame/2: `#{inspect(key)}` must be a positive integer, " <>
+            "got: #{inspect(value)}"
+  end
+
+  defp build_display_map(opts) do
+    Enum.reduce(@display_keys, @default_display, fn key, acc ->
+      case Keyword.fetch(opts, key) do
+        {:ok, value} -> Map.put(acc, key, validate_display_opt!(key, value))
+        :error -> acc
+      end
+    end)
+  end
+
+  # Per-key validation. Each clause raises ArgumentError with a clear
+  # message naming the offending option — mirrors the per-widget
+  # validation pattern used in ex_ratatui's bridge.
+  defp validate_display_opt!(:theme, value) when is_map(value), do: value
+
+  defp validate_display_opt!(:font_family, value) when is_binary(value) and byte_size(value) > 0,
+    do: value
+
+  defp validate_display_opt!(:font_size, value) when is_integer(value) and value > 0, do: value
+
+  defp validate_display_opt!(:height, value) when is_binary(value) and byte_size(value) > 0,
+    do: value
+
+  defp validate_display_opt!(:cursor_blink, value) when is_boolean(value), do: value
+  defp validate_display_opt!(:scrollback, value) when is_integer(value) and value >= 0, do: value
+  defp validate_display_opt!(:stopped_message, value) when is_binary(value), do: value
+
+  defp validate_display_opt!(key, value) do
+    raise ArgumentError,
+          "Kino.ExRatatui: invalid value for `#{inspect(key)}`: #{inspect(value)}. " <>
+            "See the moduledoc for the expected shape."
+  end
+
+  # Builds the ANSI sequence painted into the iframe when the runtime
+  # server exits. Unlike SSH (where the alt-screen leave sequence
+  # restores the user's shell), an xterm.js iframe has no shell behind
+  # it — leaving alt-screen would just show an empty buffer. So we
+  # clear the screen, reset SGR, and write a small dim/italic message.
+  defp build_stopped_screen(message) when is_binary(message) do
+    "\e[2J\e[H\e[0m\r\n  \e[2m\e[3m" <> message <> "\e[0m\r\n"
   end
 end
