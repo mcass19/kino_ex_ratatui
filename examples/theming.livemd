@@ -4,7 +4,7 @@
 # When iterating on kino_ex_ratatui itself, swap the line below for
 # `{:kino_ex_ratatui, path: Path.expand("..", __DIR__)}`.
 Mix.install([
-  {:kino_ex_ratatui, path: Path.expand("..", __DIR__)}
+  {:kino_ex_ratatui, "~> 0.1"}
 ])
 ```
 
@@ -155,8 +155,6 @@ Kino.ExRatatui.new(ThemeShowcase, label: "one dark", theme: one_dark)
 
 ## 3 · Light theme — Solarized Light
 
-A light theme sits awkwardly against Livebook's default dark cell background. The next section shows the easier way: the `:livebook` atom shorthand makes the terminal follow your OS-level light/dark preference automatically.
-
 ```elixir
 solarized_light = %{
   background: "#fdf6e3",
@@ -231,25 +229,14 @@ end
 
 ## 6 · Custom font and size
 
-`:font_family` accepts any CSS `font-family` value, `:font_size` is in pixels, and `:height` is any CSS length (`"600px"`, `"60vh"`, `"calc(100vh - 200px)"`, …) applied to the xterm.js host element.
-
-```elixir
-Kino.ExRatatui.new(ThemeShowcase,
-  label: "fira code 16px",
-  font_family: "Fira Code, JetBrains Mono, ui-monospace, monospace",
-  font_size: 16,
-  height: "550px"
-)
-```
-
-Heads up: `:font_family` is a CSS string, so the visible font is whichever entry your browser finds installed first. If neither [Fira Code](https://github.com/tonsky/FiraCode) nor JetBrains Mono is on your system the stack falls all the way to the generic `monospace` — the same place the default stack lands — and you'll only notice the size change.
-
-To convince yourself the option is actually applied, swap the family for something universally installed and visually unmistakable. The cell below uses `serif`, which has actual letterform serifs (and is therefore obviously not monospace):
+`:font_family` accepts any CSS `font-family` value, `:font_size` is in pixels, and `:height` is any CSS length (`"600px"`, `"60vh"`, `"calc(100vh - 200px)"`, …) applied to the xterm.js host element. Heads up: `:font_family` is a CSS string, so the visible font is whichever entry your browser finds installed first.
 
 ```elixir
 Kino.ExRatatui.new(ThemeShowcase,
   label: "serif (proves :font_family is applied)",
-  font_family: "Georgia, serif"
+  font_family: "Georgia, serif",
+  font_size: 16,
+  height: "550px"
 )
 ```
 
