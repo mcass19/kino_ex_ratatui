@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`Kino.ExRatatui.Telemetry` — `:telemetry` integration.** Mirrors the shape of [`ExRatatui.Telemetry`](https://hexdocs.pm/ex_ratatui/ExRatatui.Telemetry.html) one layer up, emitting events at the boundaries this widget controls so consumers can plug in logging, metrics, or distributed tracing without reaching into the runtime. Two span events (`[:kino_ex_ratatui, :transport, :connect]` with `:mod`/`:width`/`:height` — wraps the lazy `Session` + `Transport.start_server/1` boot triggered by the first `"resize"`; `[:kino_ex_ratatui, :render, :frame]` with `:mod`/`:byte_count` — wraps the `IO.iodata_to_binary/1` + Kino-bridge broadcast per-frame work) and three single events (`[:kino_ex_ratatui, :transport, :disconnect]` with `:mod`/`:reason` — fires exactly once per session, either from the runtime server's `:DOWN` or from the widget's `terminate/2` if the runtime is still alive; `[:kino_ex_ratatui, :input, :forward]` with `:mod`/`:byte_count` — fires when bytes from xterm.js are forwarded to `ByteStream.forward_input/3`; `[:kino_ex_ratatui, :resize]` with `:mod`/`:width`/`:height` — fires on resizes after the boot one). Public helpers: `span/3`, `execute/3`, `attach_default_logger/1`, `detach_default_logger/0`. New [Telemetry guide](guides/telemetry.md) walks through the full event catalogue and a `Telemetry.Metrics` wiring example. Added `{:telemetry, "~> 1.0"}` as an explicit dependency and to `extra_applications` so the handler registry is available wherever the kino runs.
+
 ## [0.1.1] - 2026-04-30
 
 ### Added

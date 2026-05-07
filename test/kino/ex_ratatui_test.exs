@@ -227,4 +227,126 @@ defmodule Kino.ExRatatuiTest do
       end)
     end
   end
+
+  describe "telemetry events" do
+    test "[:transport, :connect] span fires around the lazy boot with mod/width/height" do
+      attach_telemetry([
+        [:kino_ex_ratatui, :transport, :connect, :start],
+        [:kino_ex_ratatui, :transport, :connect, :stop]
+      ])
+
+      _kino = boot([], 100, 30)
+
+      assert_received {:tel, [:kino_ex_ratatui, :transport, :connect, :start], _,
+                       %{mod: Counter, width: 100, height: 30}}
+
+      assert_received {:tel, [:kino_ex_ratatui, :transport, :connect, :stop], stop_meas,
+                       %{mod: Counter, width: 100, height: 30}}
+
+      assert is_integer(stop_meas[:duration])
+    end
+
+    test "[:render, :frame] span fires for every ANSI broadcast with byte_count" do
+      attach_telemetry([[:kino_ex_ratatui, :render, :frame, :stop]])
+
+      _kino = boot()
+
+      assert_received {:tel, [:kino_ex_ratatui, :render, :frame, :stop], _measurements,
+                       %{mod: Counter, byte_count: byte_count}}
+
+      assert byte_count > 0
+    end
+
+    test "[:input, :forward] fires when bytes from xterm.js are forwarded" do
+      attach_telemetry([[:kino_ex_ratatui, :input, :forward]])
+
+      kino = boot()
+      assert_broadcast_event(kino, "ansi", {:binary, %{}, _})
+      push_event(kino, "input", {:binary, %{}, "+"})
+      _ = :sys.get_state(kino.pid)
+
+      assert_received {:tel, [:kino_ex_ratatui, :input, :forward], measurements,
+                       %{mod: Counter, byte_count: 1}}
+
+      assert is_integer(measurements[:system_time])
+    end
+
+    test "[:input, :forward] does NOT fire when input arrives before the first resize" do
+      attach_telemetry([[:kino_ex_ratatui, :input, :forward]])
+
+      kino = Kino.ExRatatui.new(Counter)
+      on_exit_stop(kino)
+      push_event(kino, "input", {:binary, %{}, "+"})
+      _ = :sys.get_state(kino.pid)
+
+      refute_received {:tel, [:kino_ex_ratatui, :input, :forward], _, _}
+    end
+
+    test "[:resize] fires on subsequent resizes (not the booting one)" do
+      attach_telemetry([[:kino_ex_ratatui, :resize]])
+
+      kino = boot([], 80, 24)
+      # Boot resize is rolled into :transport, :connect, not :resize.
+      refute_received {:tel, [:kino_ex_ratatui, :resize], _, _}
+
+      push_event(kino, "resize", %{"cols" => 120, "rows" => 40})
+      _ = :sys.get_state(kino.pid)
+
+      assert_received {:tel, [:kino_ex_ratatui, :resize], _,
+                       %{mod: Counter, width: 120, height: 40}}
+    end
+
+    test "[:transport, :disconnect] fires once on server :DOWN with the exit reason" do
+      attach_telemetry([[:kino_ex_ratatui, :transport, :disconnect]])
+
+      kino = boot()
+      assert_broadcast_event(kino, "ansi", {:binary, %{}, _})
+
+      # Counter returns {:stop, state} on `q`, which exits :normal.
+      push_event(kino, "input", {:binary, %{}, "q"})
+      assert_broadcast_event(kino, "ansi", {:binary, %{}, _stopped}, 500)
+
+      assert_received {:tel, [:kino_ex_ratatui, :transport, :disconnect], _,
+                       %{mod: Counter, reason: :normal}}
+
+      # And we don't double-emit when terminate runs after the :DOWN
+      # cleared the server refs.
+      GenServer.stop(kino.pid, :shutdown)
+      refute_received {:tel, [:kino_ex_ratatui, :transport, :disconnect], _, _}
+    end
+
+    test "[:transport, :disconnect] fires from terminate/2 when the runtime is still alive" do
+      attach_telemetry([[:kino_ex_ratatui, :transport, :disconnect]])
+
+      kino = boot()
+      assert_broadcast_event(kino, "ansi", {:binary, %{}, _})
+
+      GenServer.stop(kino.pid, :shutdown)
+
+      assert_received {:tel, [:kino_ex_ratatui, :transport, :disconnect], _,
+                       %{mod: Counter, reason: :shutdown}}
+    end
+
+    test "[:transport, :disconnect] does NOT fire when no runtime was ever booted" do
+      attach_telemetry([[:kino_ex_ratatui, :transport, :disconnect]])
+
+      kino = Kino.ExRatatui.new(Counter)
+      GenServer.stop(kino.pid, :shutdown)
+
+      refute_received {:tel, [:kino_ex_ratatui, :transport, :disconnect], _, _}
+    end
+  end
+
+  defp attach_telemetry(events) do
+    handler_id = "kino-test-#{System.unique_integer([:positive])}"
+
+    :ok = :telemetry.attach_many(handler_id, events, &__MODULE__.__forward_telemetry__/4, self())
+
+    on_exit(fn -> :telemetry.detach(handler_id) end)
+  end
+
+  @doc false
+  def __forward_telemetry__(event, measurements, metadata, parent) do
+    send(parent, {:tel, event, measurements, metadata})
+  end
 end
