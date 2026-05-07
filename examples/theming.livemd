@@ -1,0 +1,323 @@
+# kino_ex_ratatui — Theming and display options
+
+```elixir
+# When iterating on kino_ex_ratatui itself, swap the line below for
+# `{:kino_ex_ratatui, path: Path.expand("..", __DIR__)}`.
+Mix.install([
+  {:kino_ex_ratatui, "~> 0.1"}
+])
+```
+
+## What this notebook shows
+
+Every per-instance display option `Kino.ExRatatui.new/2` and `Kino.ExRatatui.frame/2` accept, side by side: full xterm.js [`ITheme`](https://xtermjs.org/docs/api/terminal/interfaces/itheme/) maps, custom fonts and sizes, container heights, cursor styling, and the message painted into the iframe when the runtime exits.
+
+The same App is reused everywhere — only the display opts change — so any visible difference between cells is purely the configuration talking.
+
+## A small showcase App
+
+This App ignores its mount opts other than a `:label` it prints in the header, and renders a header / palette / gauge / footer layout. It's intentionally chatty about colors so theme changes are obvious at a glance.
+
+```elixir
+defmodule ThemeShowcase do
+  use ExRatatui.App
+
+  alias ExRatatui.Event.Key
+  alias ExRatatui.Layout
+  alias ExRatatui.Layout.Rect
+  alias ExRatatui.Style
+  alias ExRatatui.Text.{Line, Span}
+  alias ExRatatui.Widgets.{Block, Gauge, Paragraph}
+
+  @impl true
+  def mount(opts), do: {:ok, %{label: opts[:label] || "demo", n: 50}}
+
+  @impl true
+  def render(state, frame) do
+    area = %Rect{x: 0, y: 0, width: frame.width, height: frame.height}
+
+    [header_area, palette_area, gauge_area, footer_area] =
+      Layout.split(
+        area,
+        :vertical,
+        [{:length, 3}, {:length, 3}, {:length, 3}, {:min, 0}]
+      )
+
+    [
+      {header(state.label), header_area},
+      {palette(), palette_area},
+      {gauge(state.n), gauge_area},
+      {footer(), footer_area}
+    ]
+  end
+
+  @impl true
+  def handle_event(%Key{code: "+"}, s), do: {:noreply, %{s | n: min(100, s.n + 5)}}
+  def handle_event(%Key{code: "-"}, s), do: {:noreply, %{s | n: max(0, s.n - 5)}}
+  def handle_event(%Key{code: "q"}, s), do: {:stop, s}
+  def handle_event(_, s), do: {:noreply, s}
+
+  defp header(label) do
+    %Paragraph{
+      text: " ✨ #{label}",
+      style: %Style{fg: :cyan, modifiers: [:bold]},
+      block: %Block{
+        borders: [:all],
+        border_type: :rounded,
+        border_style: %Style{fg: :cyan}
+      }
+    }
+  end
+
+  defp palette do
+    %Paragraph{
+      text: %Line{
+        spans: [
+          %Span{content: " black ", style: %Style{fg: :black, bg: :white}},
+          %Span{content: " red ", style: %Style{fg: :red}},
+          %Span{content: " green ", style: %Style{fg: :green}},
+          %Span{content: " yellow ", style: %Style{fg: :yellow}},
+          %Span{content: " blue ", style: %Style{fg: :blue}},
+          %Span{content: " magenta ", style: %Style{fg: :magenta}},
+          %Span{content: " cyan ", style: %Style{fg: :cyan}},
+          %Span{content: " white ", style: %Style{fg: :white, bg: :black}}
+        ]
+      },
+      block: %Block{
+        borders: [:all],
+        border_style: %Style{fg: :dark_gray},
+        title: " palette "
+      }
+    }
+  end
+
+  defp gauge(value) do
+    %Gauge{
+      ratio: value / 100,
+      label: "#{value}%",
+      style: %Style{fg: :magenta, bg: :black},
+      block: %Block{
+        borders: [:all],
+        border_style: %Style{fg: :magenta},
+        title: " progress "
+      }
+    }
+  end
+
+  defp footer do
+    %Paragraph{
+      text: "  + / -  adjust   ·   q  quit",
+      style: %Style{fg: :dark_gray, modifiers: [:italic]}
+    }
+  end
+end
+```
+
+## 1 · Default look
+
+No opts — the widget paints with the `kino_ex_ratatui` defaults (catppuccin-style dark, `ui-monospace` 13px, 400px tall, blinking cursor).
+
+```elixir
+Kino.ExRatatui.new(ThemeShowcase, label: "default")
+```
+
+## 2 · Custom theme — One Dark
+
+`:theme` accepts the full xterm.js `ITheme` object — the 16-color ANSI palette plus selection / cursor accents. Atoms map to camelCase JSON keys (`:cursorAccent`, `:selectionBackground`, …) without translation.
+
+```elixir
+one_dark = %{
+  background: "#282c34",
+  foreground: "#abb2bf",
+  cursor: "#528bff",
+  cursorAccent: "#282c34",
+  selectionBackground: "#3e4451",
+  black: "#282c34",
+  red: "#e06c75",
+  green: "#98c379",
+  yellow: "#e5c07b",
+  blue: "#61afef",
+  magenta: "#c678dd",
+  cyan: "#56b6c2",
+  white: "#abb2bf",
+  brightBlack: "#5c6370",
+  brightRed: "#e06c75",
+  brightGreen: "#98c379",
+  brightYellow: "#e5c07b",
+  brightBlue: "#61afef",
+  brightMagenta: "#c678dd",
+  brightCyan: "#56b6c2",
+  brightWhite: "#ffffff"
+}
+
+Kino.ExRatatui.new(ThemeShowcase, label: "one dark", theme: one_dark)
+```
+
+## 3 · Light theme — Solarized Light
+
+A light theme sits awkwardly against Livebook's default dark cell background today — that's why a future `Kino.ExRatatui.configure(theme: :livebook)` is on the roadmap. For now, picking a light theme is explicit per cell.
+
+```elixir
+solarized_light = %{
+  background: "#fdf6e3",
+  foreground: "#657b83",
+  cursor: "#586e75",
+  cursorAccent: "#fdf6e3",
+  selectionBackground: "#eee8d5",
+  black: "#073642",
+  red: "#dc322f",
+  green: "#859900",
+  yellow: "#b58900",
+  blue: "#268bd2",
+  magenta: "#d33682",
+  cyan: "#2aa198",
+  white: "#eee8d5",
+  brightBlack: "#002b36",
+  brightRed: "#cb4b16",
+  brightGreen: "#586e75",
+  brightYellow: "#657b83",
+  brightBlue: "#839496",
+  brightMagenta: "#6c71c4",
+  brightCyan: "#93a1a1",
+  brightWhite: "#fdf6e3"
+}
+
+Kino.ExRatatui.new(ThemeShowcase, label: "solarized light", theme: solarized_light)
+```
+
+## 4 · Custom font and size
+
+`:font_family` accepts any CSS `font-family` value, `:font_size` is in pixels, and `:height` is any CSS length (`"600px"`, `"60vh"`, `"calc(100vh - 200px)"`, …) applied to the xterm.js host element.
+
+If [Fira Code](https://github.com/tonsky/FiraCode) (or whatever you list first) isn't installed, the font stack falls back through the rest of the list — this is just a CSS `font-family` value.
+
+```elixir
+Kino.ExRatatui.new(ThemeShowcase,
+  label: "fira code 16px",
+  font_family: "Fira Code, JetBrains Mono, ui-monospace, monospace",
+  font_size: 16,
+  height: "550px"
+)
+```
+
+## 5 · Cursor and stopped-message overrides
+
+`:cursor_blink` is a boolean (xterm.js's option of the same name); `:stopped_message` is the dim italic text painted into the iframe after the App returns `{:stop, _}` or `mount/1` fails.
+
+Press `q` in the cell below to see the custom stopped message.
+
+```elixir
+Kino.ExRatatui.new(ThemeShowcase,
+  label: "no blink, custom stop",
+  cursor_blink: false,
+  stopped_message: "👋  thanks for trying it out — re-run the cell to come back"
+)
+```
+
+## 6 · Static gallery — three themes side by side
+
+`Kino.ExRatatui.frame/2` accepts the static-friendly subset of display opts: `:theme`, `:font_family`, `:font_size`. The same widget tree is rendered three times below; only `:theme` differs.
+
+```elixir
+alias ExRatatui.Layout
+alias ExRatatui.Layout.Rect
+alias ExRatatui.Style
+alias ExRatatui.Text.{Line, Span}
+alias ExRatatui.Widgets.{Block, Paragraph}
+
+dracula = %{
+  background: "#282a36",
+  foreground: "#f8f8f2",
+  cursor: "#f8f8f2",
+  cursorAccent: "#282a36",
+  selectionBackground: "#44475a",
+  black: "#21222c",
+  red: "#ff5555",
+  green: "#50fa7b",
+  yellow: "#f1fa8c",
+  blue: "#bd93f9",
+  magenta: "#ff79c6",
+  cyan: "#8be9d4",
+  white: "#f8f8f2",
+  brightBlack: "#6272a4",
+  brightRed: "#ff6e6e",
+  brightGreen: "#69ff94",
+  brightYellow: "#ffffa5",
+  brightBlue: "#d6acff",
+  brightMagenta: "#ff92df",
+  brightCyan: "#a4ffff",
+  brightWhite: "#ffffff"
+}
+
+frame_for = fn label, theme ->
+  rect = %Rect{x: 0, y: 0, width: 36, height: 7}
+  [top, bottom] = Layout.split(rect, :vertical, [{:length, 3}, {:min, 0}])
+
+  Kino.ExRatatui.frame(
+    [
+      {%Paragraph{
+         text: " #{label}",
+         style: %Style{fg: :cyan, modifiers: [:bold]},
+         block: %Block{borders: [:all], border_type: :rounded}
+       }, top},
+      {%Paragraph{
+         text: %Line{
+           spans: [
+             %Span{content: " ■ ", style: %Style{fg: :red}},
+             %Span{content: " ■ ", style: %Style{fg: :green}},
+             %Span{content: " ■ ", style: %Style{fg: :yellow}},
+             %Span{content: " ■ ", style: %Style{fg: :blue}},
+             %Span{content: " ■ ", style: %Style{fg: :magenta}},
+             %Span{content: " ■ ", style: %Style{fg: :cyan}},
+             %Span{content: " ■", style: %Style{fg: :white}}
+           ]
+         },
+         block: %Block{borders: [:all], border_style: %Style{fg: :dark_gray}}
+       }, bottom}
+    ],
+    cols: 36,
+    rows: 7,
+    theme: theme
+  )
+end
+
+Kino.Layout.grid(
+  [
+    frame_for.("default", %{
+      background: "#1e1e2e",
+      foreground: "#cdd6f4",
+      cursor: "#f5e0dc"
+    }),
+    frame_for.("dracula", dracula),
+    frame_for.("solarized light", solarized_light)
+  ],
+  columns: 3
+)
+```
+
+## 7 · Validation
+
+Bad shapes raise `ArgumentError` at the call site — there's no silent fallback to the default. The message names the offending option so typos are caught immediately rather than producing a working-but-wrong widget.
+
+```elixir
+try do
+  Kino.ExRatatui.new(ThemeShowcase, theme: :dark)
+rescue
+  e in ArgumentError -> e.message
+end
+```
+
+```elixir
+try do
+  # Live-only opts are rejected on `frame/2`.
+  Kino.ExRatatui.frame([], cols: 10, rows: 1, height: "200px")
+rescue
+  e in ArgumentError -> e.message
+end
+```
+
+## Where to next
+
+* The [`Kino.ExRatatui` moduledoc](https://hexdocs.pm/kino_ex_ratatui/Kino.ExRatatui.html) — the full Display options table with types, defaults, and notes.
+* The [Telemetry guide](https://hexdocs.pm/kino_ex_ratatui/telemetry.html) — `:transport`, `:render`, `:input`, and `:resize` events you can hook into to time, log, or `Telemetry.Metrics`-graph any of the calls above.
+* [`examples/system_monitor.livemd`](system_monitor.livemd), [`examples/chat_interface.livemd`](chat_interface.livemd), [`examples/reducer_counter.livemd`](reducer_counter.livemd) — three callback / reducer apps that combine more widgets than this notebook does.

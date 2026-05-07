@@ -165,3 +165,4 @@ Kino.ExRatatui.frame(
 * The original version: [`ex_ratatui/examples/reducer_counter_app.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/reducer_counter_app.exs).
 * [`examples/system_monitor.livemd`](system_monitor.livemd) — a callback-runtime dashboard with `Gauge` + `Table`.
 * [`examples/chat_interface.livemd`](chat_interface.livemd) — a callback-runtime interactive chat exercising `Markdown`, `Textarea`, `Throbber`, and `SlashCommands`.
+* [`examples/theming.livemd`](theming.livemd) — every per-instance display option (theme, font, height, cursor, stopped message) on the same App, side by side.
