@@ -4,7 +4,7 @@
 # When iterating on kino_ex_ratatui itself, swap the line below for
 # `{:kino_ex_ratatui, path: Path.expand("..", __DIR__)}`.
 Mix.install([
-  {:kino_ex_ratatui, "~> 0.1"}
+  {:kino_ex_ratatui, path: Path.expand("..", __DIR__)}
 ])
 ```
 
@@ -155,7 +155,7 @@ Kino.ExRatatui.new(ThemeShowcase, label: "one dark", theme: one_dark)
 
 ## 3 · Light theme — Solarized Light
 
-A light theme sits awkwardly against Livebook's default dark cell background today — that's why a future `Kino.ExRatatui.configure(theme: :livebook)` is on the roadmap. For now, picking a light theme is explicit per cell.
+A light theme sits awkwardly against Livebook's default dark cell background. The next section shows the easier way: the `:livebook` atom shorthand makes the terminal follow your OS-level light/dark preference automatically.
 
 ```elixir
 solarized_light = %{
@@ -185,7 +185,51 @@ solarized_light = %{
 Kino.ExRatatui.new(ThemeShowcase, label: "solarized light", theme: solarized_light)
 ```
 
-## 4 · Custom font and size
+## 4 · Atom theme shorthands — `:dark`, `:light`, `:livebook`
+
+`:theme` accepts a full xterm.js `ITheme` map (the lowest-level form) or one of three atoms: `:dark` (the bundled Catppuccin Mocha-flavored palette), `:light` (Catppuccin Latte), or `:livebook` (picks `:dark` or `:light` based on the user's OS-level `prefers-color-scheme` and re-applies on the fly when that preference changes).
+
+```elixir
+Kino.ExRatatui.new(ThemeShowcase, label: ":livebook (auto)", theme: :livebook)
+```
+
+Toggle your OS into light or dark mode with the cell above running — the terminal swaps to match without a re-eval.
+
+## 5 · Global defaults via `configure/1`
+
+`Kino.ExRatatui.configure/1` writes display defaults to the `:kino_ex_ratatui` Application environment so every subsequent `new/2` and `frame/2` call picks them up. Per-instance opts still win key-by-key.
+
+```elixir
+Kino.ExRatatui.configure(
+  theme: :livebook,
+  font_family: "JetBrains Mono, ui-monospace, monospace",
+  font_size: 14
+)
+
+# This call uses the configured theme, font_family, and font_size,
+# plus the module default for height/cursor_blink/scrollback.
+Kino.ExRatatui.new(ThemeShowcase, label: "configured")
+```
+
+Per-instance overrides still apply — only the keys you set get overridden, the rest fall through to the configured value:
+
+```elixir
+# theme: overridden per-cell. font_family + font_size: still from configure/1.
+Kino.ExRatatui.new(ThemeShowcase,
+  label: "configured + override",
+  theme: %{background: "#0d1117", foreground: "#c9d1d9"}
+)
+```
+
+Reset the global config when you're done experimenting:
+
+```elixir
+for key <- [:theme, :font_family, :font_size, :height, :cursor_blink, :scrollback, :stopped_message] do
+  Application.delete_env(:kino_ex_ratatui, key)
+end
+```
+
+## 6 · Custom font and size
 
 `:font_family` accepts any CSS `font-family` value, `:font_size` is in pixels, and `:height` is any CSS length (`"600px"`, `"60vh"`, `"calc(100vh - 200px)"`, …) applied to the xterm.js host element.
 
@@ -200,7 +244,7 @@ Kino.ExRatatui.new(ThemeShowcase,
 )
 ```
 
-## 5 · Cursor and stopped-message overrides
+## 7 · Cursor and stopped-message overrides
 
 `:cursor_blink` is a boolean (xterm.js's option of the same name); `:stopped_message` is the dim italic text painted into the iframe after the App returns `{:stop, _}` or `mount/1` fails.
 
@@ -214,7 +258,7 @@ Kino.ExRatatui.new(ThemeShowcase,
 )
 ```
 
-## 6 · Static gallery — three themes side by side
+## 8 · Static gallery — three themes side by side
 
 `Kino.ExRatatui.frame/2` accepts the static-friendly subset of display opts: `:theme`, `:font_family`, `:font_size`. The same widget tree is rendered three times below; only `:theme` differs.
 
@@ -295,7 +339,7 @@ Kino.Layout.grid(
 )
 ```
 
-## 7 · Validation
+## 9 · Validation
 
 Bad shapes raise `ArgumentError` at the call site — there's no silent fallback to the default. The message names the offending option so typos are caught immediately rather than producing a working-but-wrong widget.
 

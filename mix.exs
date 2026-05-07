@@ -83,6 +83,7 @@ defmodule KinoExRatatui.MixProject do
       source_ref: "v#{@version}",
       extras: [
         "README.md": [title: "Overview"],
+        "guides/configuration.md": [title: "Configuration"],
         "guides/telemetry.md": [title: "Telemetry"],
         "CONTRIBUTING.md": [title: "Contributing"],
         "CHANGELOG.md": [title: "Changelog"]

@@ -46,7 +46,7 @@ defmodule Kino.ExRatatui do
 
   | Option | Type | Default | Notes |
   | ------ | ---- | ------- | ----- |
-  | `:theme` | `map()` | catppuccin-style dark theme | Forwarded to xterm.js's `Terminal({theme: ...})`. Accepts the full xterm.js [`ITheme`](https://xtermjs.org/docs/api/terminal/interfaces/itheme/) object — `:background`, `:foreground`, `:cursor`, `:cursorAccent`, `:selectionBackground`, `:black`/`:red`/.../`:brightWhite`, etc. Atom keys are JSON-encoded as strings; use the camelCase that xterm.js expects (`cursorAccent`, not `cursor_accent`). |
+  | `:theme` | `map()` or `:dark` / `:light` / `:livebook` | catppuccin-style dark theme | A map is forwarded to xterm.js's `Terminal({theme: ...})` verbatim — accepts the full xterm.js [`ITheme`](https://xtermjs.org/docs/api/terminal/interfaces/itheme/) object (`:background`, `:foreground`, `:cursor`, `:cursorAccent`, `:selectionBackground`, the 16-color ANSI palette, …). Atom keys are JSON-encoded as strings; use the camelCase xterm.js expects (`cursorAccent`, not `cursor_accent`). The atom shorthands resolve in the JS hook: `:dark` and `:light` pick a bundled palette, `:livebook` follows the user's `prefers-color-scheme` and live-switches when it changes. |
   | `:font_family` | `String.t()` | `"ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"` | CSS `font-family` value. Anything `xterm.js` can render. |
   | `:font_size` | `pos_integer()` | `13` | Cell font size in px. |
   | `:height` | `String.t()` | `"400px"` | CSS height applied to the xterm container. Accepts any valid CSS length (`"600px"`, `"60vh"`, …). |
@@ -64,6 +64,25 @@ defmodule Kino.ExRatatui do
         font_size: 14,
         height: "600px"
       )
+
+  ## Global configuration
+
+  Set defaults that apply to every `new/2` and `frame/2` call in the
+  current Livebook (or your application's runtime) with `configure/1`:
+
+      # In a setup cell, or your application's start/2:
+      Kino.ExRatatui.configure(
+        theme: :livebook,
+        font_family: "JetBrains Mono, ui-monospace, monospace",
+        font_size: 14
+      )
+
+  Merge order is **per-instance opts > `configure/1` > module
+  defaults**, key by key. Setting `theme:` globally and then passing
+  `theme: %{background: "#000"}` per-instance overrides the theme
+  alone — the global `font_size` still wins for that call. See
+  `configure/1` for the full list and the
+  [Configuration guide](configuration.md) for recipes.
 
   ## Lifecycle
 
@@ -220,6 +239,52 @@ defmodule Kino.ExRatatui do
     after
       :ok = Session.close(session)
     end
+  end
+
+  @doc """
+  Sets global defaults applied to every subsequent `new/2` and
+  `frame/2` call in the current runtime.
+
+  Accepts the same keys as the [Display options](#module-display-options)
+  on `new/2`. Each value is validated immediately (the same way it
+  would be on `new/2`) — bad shapes raise `ArgumentError`.
+
+  Per-instance opts on `new/2` / `frame/2` still win key-by-key.
+  Calling `configure/1` again merges into the existing config rather
+  than replacing it, so you can split related settings across cells.
+
+  Returns `:ok`.
+
+  ## Examples
+
+      # Reactively follow Livebook's light/dark mode and bump the font.
+      Kino.ExRatatui.configure(theme: :livebook, font_size: 14)
+
+      # Per-instance overrides still apply. This call uses the configured
+      # font_size: 14 but a custom theme.
+      Kino.ExRatatui.new(Counter, theme: %{background: "#000"})
+
+  Stored under the `:kino_ex_ratatui` Application environment, so the
+  same value is also reachable via `Application.get_all_env(:kino_ex_ratatui)`
+  if you're orchestrating from a release `config/runtime.exs` or any
+  other `Config`-driven setup.
+  """
+  @spec configure(keyword()) :: :ok
+  def configure(opts) when is_list(opts) do
+    Enum.each(opts, fn {key, value} ->
+      validated =
+        if key in @display_keys do
+          validate_display_opt!(key, value)
+        else
+          raise ArgumentError,
+                "Kino.ExRatatui.configure/1: unknown option `#{inspect(key)}`. " <>
+                  "Supported: #{inspect(@display_keys)}"
+        end
+
+      Application.put_env(:kino_ex_ratatui, key, validated)
+    end)
+
+    :ok
   end
 
   ## Kino.JS.Live callbacks
@@ -404,10 +469,22 @@ defmodule Kino.ExRatatui do
   end
 
   defp build_display_map(opts) do
+    # Merge order, key-by-key: per-instance opts > Application env >
+    # module defaults. Values from configure/1 are already validated
+    # (configure/1 ran the validator before calling put_env), but
+    # we re-validate per-instance values at the call site.
+    app_env = Application.get_all_env(:kino_ex_ratatui)
+
     Enum.reduce(@display_keys, @default_display, fn key, acc ->
-      case Keyword.fetch(opts, key) do
-        {:ok, value} -> Map.put(acc, key, validate_display_opt!(key, value))
-        :error -> acc
+      cond do
+        Keyword.has_key?(opts, key) ->
+          Map.put(acc, key, validate_display_opt!(key, Keyword.fetch!(opts, key)))
+
+        Keyword.has_key?(app_env, key) ->
+          Map.put(acc, key, Keyword.fetch!(app_env, key))
+
+        true ->
+          acc
       end
     end)
   end
@@ -416,6 +493,9 @@ defmodule Kino.ExRatatui do
   # message naming the offending option — mirrors the per-widget
   # validation pattern used in ex_ratatui's bridge.
   defp validate_display_opt!(:theme, value) when is_map(value), do: value
+
+  defp validate_display_opt!(:theme, value) when value in [:dark, :light, :livebook],
+    do: value
 
   defp validate_display_opt!(:font_family, value) when is_binary(value) and byte_size(value) > 0,
     do: value

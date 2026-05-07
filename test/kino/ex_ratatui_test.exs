@@ -312,9 +312,9 @@ defmodule Kino.ExRatatuiTest do
       refute payload =~ "re-evaluate"
     end
 
-    test "validation: :theme must be a map" do
-      assert_raise ArgumentError, ~r/`:theme`: :dark/, fn ->
-        Kino.ExRatatui.new(Counter, theme: :dark)
+    test "validation: :theme must be a map or :dark / :light / :livebook" do
+      assert_raise ArgumentError, ~r/`:theme`: :neon/, fn ->
+        Kino.ExRatatui.new(Counter, theme: :neon)
       end
     end
 
@@ -433,9 +433,9 @@ defmodule Kino.ExRatatuiTest do
       end
     end
 
-    test "validates :theme is a map (same vocabulary as new/2)" do
-      assert_raise ArgumentError, ~r/`:theme`: :dark/, fn ->
-        Kino.ExRatatui.frame(simple_widgets(), theme: :dark)
+    test "validates :theme is a map or :dark / :light / :livebook" do
+      assert_raise ArgumentError, ~r/`:theme`: :neon/, fn ->
+        Kino.ExRatatui.frame(simple_widgets(), theme: :neon)
       end
     end
   end
