@@ -4,7 +4,7 @@ defmodule KinoExRatatui.MixProject do
   @description "Run ExRatatui apps inside Livebook"
   @source_url "https://github.com/mcass19/kino_ex_ratatui"
   @changelog_url @source_url <> "/blob/main/CHANGELOG.md"
-  @version "0.1.1"
+  @version "0.2.0"
 
   def project do
     [

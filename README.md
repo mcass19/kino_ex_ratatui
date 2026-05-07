@@ -32,7 +32,7 @@ Add `kino_ex_ratatui` to your Livebook setup cell (or your project's `mix.exs`):
 
 ```elixir
 Mix.install([
-  {:kino_ex_ratatui, "~> 0.1"}
+  {:kino_ex_ratatui, "~> 0.2"}
 ])
 ```
 
