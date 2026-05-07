@@ -338,18 +338,16 @@ defmodule Kino.ExRatatui do
   @impl true
   def handle_info({:DOWN, ref, :process, _pid, reason}, ctx)
       when ref == ctx.assigns.server_ref do
-    # App quit (`{:stop, state}`, `mount/1` failed, …). Paint the
-    # stopped-state screen (clear + dim message) so the user sees a
-    # clean "re-evaluate the cell" hint instead of a frozen frame
-    # with the cursor sitting on it. Then drop the server refs so we
-    # don't try to stop a dead process from terminate/2.
+    # App quit (`{:stop, state}`, `mount/1` failed, …). Tell the JS
+    # hook to render an accessible DOM overlay over the xterm
+    # container so the user sees a clean "re-evaluate the cell" hint
+    # — and so screen readers announce it via aria-live — instead of
+    # the frozen final frame with the cursor sitting on it. Then
+    # drop the server refs so terminate/2 doesn't try to stop a dead
+    # process.
     Telemetry.execute([:transport, :disconnect], %{}, %{mod: ctx.assigns.mod, reason: reason})
 
-    broadcast_event(
-      ctx,
-      "ansi",
-      {:binary, %{}, build_stopped_screen(ctx.assigns.display.stopped_message)}
-    )
+    broadcast_event(ctx, "stopped", %{message: ctx.assigns.display.stopped_message})
 
     {:noreply, assign(ctx, session: nil, server: nil, server_ref: nil)}
   end
@@ -513,14 +511,5 @@ defmodule Kino.ExRatatui do
     raise ArgumentError,
           "Kino.ExRatatui: invalid value for `#{inspect(key)}`: #{inspect(value)}. " <>
             "See the moduledoc for the expected shape."
-  end
-
-  # Builds the ANSI sequence painted into the iframe when the runtime
-  # server exits. Unlike SSH (where the alt-screen leave sequence
-  # restores the user's shell), an xterm.js iframe has no shell behind
-  # it — leaving alt-screen would just show an empty buffer. So we
-  # clear the screen, reset SGR, and write a small dim/italic message.
-  defp build_stopped_screen(message) when is_binary(message) do
-    "\e[2J\e[H\e[0m\r\n  \e[2m\e[3m" <> message <> "\e[0m\r\n"
   end
 end

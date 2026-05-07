@@ -165,28 +165,48 @@ defmodule Kino.ExRatatuiTest do
   end
 
   describe "server DOWN" do
-    test "broadcasts the stopped-state screen and clears server refs" do
+    test "broadcasts a 'stopped' event with the configured message and clears server refs" do
       kino = boot()
 
-      # Drain the initial render's broadcast so the stopped-state one
-      # is the next event we capture.
+      # Drain the initial render's broadcast so the stopped-state event
+      # is the next one we capture.
       assert_broadcast_event(kino, "ansi", {:binary, %{}, _initial})
 
       push_event(kino, "input", {:binary, %{}, "q"})
 
       # The Counter App returns {:stop, state} on `q`, so the runtime
-      # server exits :normal and our handle_info/2 fires. The widget
-      # paints a clear-screen + dim "App stopped" message instead of
-      # leaving the last frame frozen with the cursor on it.
-      assert_broadcast_event(kino, "ansi", {:binary, %{}, payload}, 500)
-      assert payload =~ "\e[2J"
-      assert payload =~ "App stopped"
+      # server exits :normal and handle_info/2 fires. The widget
+      # broadcasts a structured "stopped" event with the configured
+      # `:stopped_message`; the JS hook renders it as a `role="status"`
+      # DOM overlay so screen readers announce it and sighted users
+      # see a clean hint instead of the frozen final frame.
+      assert_broadcast_event(kino, "stopped", payload, 500)
+      assert is_map(payload)
+      # The payload is a single-key map; the JS hook reads only :message
+      # and feeds it to `textContent`. Pinning the shape keeps the wire
+      # protocol stable across refactors of `handle_info(:DOWN)`.
+      assert Map.keys(payload) == [:message]
+      assert payload.message =~ "re-evaluate"
 
       _ = :sys.get_state(kino.pid)
       assigns = assigns(kino)
       assert assigns.session == nil
       assert assigns.server == nil
       assert assigns.server_ref == nil
+    end
+
+    test "the 'stopped' event is NOT a binary payload — it's a plain map for the JS hook" do
+      # Defensive pin: the JS hook switched from rendering ANSI bytes
+      # in the buffer to a DOM overlay reading payload.message. If a
+      # future refactor sends bytes again, this assertion catches it
+      # before the overlay silently breaks.
+      kino = boot()
+      assert_broadcast_event(kino, "ansi", {:binary, %{}, _initial})
+
+      push_event(kino, "input", {:binary, %{}, "q"})
+      assert_broadcast_event(kino, "stopped", payload, 500)
+
+      refute match?({:binary, _, _}, payload)
     end
   end
 
@@ -297,19 +317,18 @@ defmodule Kino.ExRatatuiTest do
       assert connect(kino) == display
     end
 
-    test "custom :stopped_message flows into the broadcast painted on server :DOWN" do
-      kino = Kino.ExRatatui.new(Counter, stopped_message: "byebye-#{:rand.uniform(99_999)}")
+    test "custom :stopped_message flows into the 'stopped' event payload on server :DOWN" do
+      custom = "byebye-#{:rand.uniform(99_999)}"
+      kino = Kino.ExRatatui.new(Counter, stopped_message: custom)
       on_exit_stop(kino)
 
       push_event(kino, "resize", %{"cols" => 80, "rows" => 24})
       assert_broadcast_event(kino, "ansi", {:binary, %{}, _initial})
 
-      message = assigns(kino).display.stopped_message
       push_event(kino, "input", {:binary, %{}, "q"})
 
-      assert_broadcast_event(kino, "ansi", {:binary, %{}, payload}, 500)
-      assert payload =~ message
-      refute payload =~ "re-evaluate"
+      assert_broadcast_event(kino, "stopped", %{message: ^custom}, 500)
+      refute custom =~ "re-evaluate"
     end
 
     test "validation: :theme must be a map or :dark / :light / :livebook" do
@@ -516,7 +535,7 @@ defmodule Kino.ExRatatuiTest do
 
       # Counter returns {:stop, state} on `q`, which exits :normal.
       push_event(kino, "input", {:binary, %{}, "q"})
-      assert_broadcast_event(kino, "ansi", {:binary, %{}, _stopped}, 500)
+      assert_broadcast_event(kino, "stopped", %{message: _}, 500)
 
       assert_received {:tel, [:kino_ex_ratatui, :transport, :disconnect], _,
                        %{mod: Counter, reason: :normal}}
