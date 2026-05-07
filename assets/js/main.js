@@ -249,4 +249,60 @@ function initLive(ctx, payload) {
   ctx.handleEvent("ansi", ([_info, buffer]) => {
     term.write(new Uint8Array(buffer));
   });
+
+  // Receive the stopped-state signal — the runtime server has exited
+  // (App returned {:stop, _}, mount/1 failed, …). Replace the frozen
+  // final frame with an accessible overlay so screen readers announce
+  // the message and sighted users see a clean hint rather than a
+  // dead cursor sitting on the last rendered output.
+  ctx.handleEvent("stopped", ({ message }) => {
+    showStoppedOverlay(container, display.theme, message);
+  });
+}
+
+// Anchors a `role="status"` overlay to the xterm container with the
+// supplied message. Idempotent — if a previous "stopped" event
+// already rendered an overlay we leave it alone (Elixir won't fire
+// twice today, but the JS being defensive costs nothing).
+//
+// The overlay uses the configured theme's background/foreground so
+// it visually continues from the terminal rather than punching a
+// random color over it. `pointer-events: none` so it doesn't capture
+// clicks — there's nothing to click yet, but if we ever add a
+// "restart" button we'd flip this on for that element only.
+function showStoppedOverlay(container, theme, message) {
+  if (container.querySelector(".pxr-stopped")) return;
+
+  // The overlay is absolutely positioned, so the container needs to
+  // be a positioning context.
+  if (!container.style.position) {
+    container.style.position = "relative";
+  }
+
+  const overlay = document.createElement("div");
+  overlay.className = "pxr-stopped";
+  overlay.setAttribute("role", "status");
+  overlay.setAttribute("aria-live", "polite");
+  // textContent (not innerHTML) so a user-supplied stopped_message
+  // containing HTML never executes — defensive even though the message
+  // originates from the user's own Elixir code.
+  overlay.textContent = message;
+  overlay.style.cssText = [
+    "position:absolute",
+    "inset:0",
+    "display:flex",
+    "align-items:center",
+    "justify-content:center",
+    "padding:1rem",
+    "font-style:italic",
+    "background:" + theme.background,
+    "color:" + (theme.foreground || "#888"),
+    "border-radius:inherit",
+    "z-index:1",
+    "white-space:pre-line",
+    "text-align:center",
+    "pointer-events:none",
+  ].join(";");
+
+  container.appendChild(overlay);
 }
