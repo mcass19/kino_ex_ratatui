@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-07
+
 ### Added
 
 - **Accessible stopped-state DOM overlay.** When the runtime server exits (`{:stop, _}`, `mount/1` failure, crash) the widget no longer paints a dim ANSI message into the xterm buffer — it broadcasts a `"stopped"` Kino event with `%{message: stopped_message}`, and the JS hook anchors a `role="status" aria-live="polite"` `<div>` over the xterm container. Screen readers announce the message via `aria-live`; sighted users see a centered italic line in the configured theme's foreground/background instead of a dead cursor sitting on the frozen final frame. The overlay is `pointer-events: none`, applied at `z-index: 1`, and uses `textContent` so a user-supplied `:stopped_message` is never interpreted as HTML. Idempotent — refires of the event are ignored once an overlay is present. The `:stopped_message` knob from the per-instance display options is unchanged; this is purely a wire-protocol + presentation switch from "ANSI bytes the user reads off the dead xterm buffer" to "structured payload an accessible DOM overlay renders".
@@ -40,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Test suite** — 22 tests via `Kino.Test`'s `configure_livebook_bridge` + `push_event/3` + `assert_broadcast_event/3`, covering: lazy boot, mount-opts pass-through, handle_connect payload, first/subsequent resize, input round-trip, input arriving before first resize, server `:DOWN`, terminate cleanup, mount failure, unrelated `handle_info` messages, and `__assets_info__/0`. Runs async in 0.2s, 100% line coverage (test fixtures excluded via `test_coverage: [ignore_modules: [...]]`).
 - **Three bundled example notebooks** under `examples/` — `system_monitor.livemd` (callback-runtime dashboard porting `ex_ratatui/examples/system_monitor.exs` with `Gauge`, `Table`, `/proc` polling), `chat_interface.livemd` (callback-runtime AI-chat mock exercising `Markdown`, `Textarea`, `Throbber`, `Scrollbar`, and `/`-prefixed `SlashCommands` autocomplete via `Popup` — ported from the original imperative `ExRatatui.run/1` loop in `ex_ratatui/examples/chat_interface.exs`), and `reducer_counter.livemd` (reducer-runtime counter with a `Subscription.interval` plus a `Kino.ExRatatui.frame/2` static-frame demo). Each notebook cross-references the other two and links to the relevant runtime guide so any one of them is a complete jumping-off point.
 
-[Unreleased]: https://github.com/mcass19/kino_ex_ratatui/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/mcass19/kino_ex_ratatui/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/mcass19/kino_ex_ratatui/releases/tag/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/mcass19/kino_ex_ratatui/releases/tag/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/mcass19/kino_ex_ratatui/releases/tag/v0.1.0
