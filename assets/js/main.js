@@ -3,12 +3,16 @@
 // Two modes share the same bundle:
 //
 //   1. Live  (Kino.ExRatatui.new/2)
-//        payload from Elixir: {}  (empty object — handle_connect/1)
+//        payload from Elixir: display map (theme, font_family, font_size,
+//                              height, cursor_blink, scrollback,
+//                              stopped_message)
 //        wiring: FitAddon + onData + ResizeObserver + "ansi" handler
 //
 //   2. Static (Kino.ExRatatui.frame/2)
-//        payload from Elixir: {:binary, %{cols, rows, mode: "static"}, bytes}
-//        delivered to JS as: [{cols, rows, mode}, ArrayBuffer]
+//        payload from Elixir: {:binary, %{cols, rows, mode: "static",
+//                                         theme, font_family, font_size},
+//                              bytes}
+//        delivered to JS as: [{cols, rows, mode, ...display}, ArrayBuffer]
 //        wiring: term.resize(cols, rows); term.write(bytes); nothing else
 //
 // Wire protocol for live mode (matches lib/kino/ex_ratatui.ex):
@@ -29,74 +33,101 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 
-const FONT_FAMILY =
-  "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-const FONT_SIZE = 13;
-const THEME = {
-  background: "#1e1e2e",
-  foreground: "#cdd6f4",
-  cursor: "#f5e0dc",
+// JS-side fallbacks. Keep in sync with `@default_display` in
+// `lib/kino/ex_ratatui.ex` — Elixir always sends the full display map
+// today, but copying the values here keeps the JS hook usable in
+// isolation (custom payload shapes, future smart-cell variants) and
+// gives us a single answer for "what is the default look".
+const DEFAULTS = {
+  theme: {
+    background: "#1e1e2e",
+    foreground: "#cdd6f4",
+    cursor: "#f5e0dc",
+  },
+  font_family:
+    "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+  font_size: 13,
+  height: "400px",
+  cursor_blink: true,
+  scrollback: 1000,
 };
+
+// Folds a (potentially empty / partial) display payload into the
+// defaults. Theme is shallow-merged separately so users overriding
+// `background` don't lose the default `foreground` / `cursor`.
+function resolveDisplay(payload) {
+  const merged = { ...DEFAULTS, ...(payload || {}) };
+  merged.theme = { ...DEFAULTS.theme, ...((payload && payload.theme) || {}) };
+  return merged;
+}
+
+function applyContainerStyle(ctx, display) {
+  ctx.root.style.fontFamily = display.font_family;
+  ctx.root.style.background = display.theme.background;
+  ctx.root.style.padding = "8px";
+  ctx.root.style.borderRadius = "6px";
+}
 
 export function init(ctx, payload) {
   ctx.importCSS("main.css");
 
-  ctx.root.style.fontFamily = FONT_FAMILY;
-  ctx.root.style.background = THEME.background;
-  ctx.root.style.padding = "8px";
-  ctx.root.style.borderRadius = "6px";
-
   // `Array.isArray` reliably distinguishes Kino's binary payload shape
-  // ([info, ArrayBuffer]) from the empty `{}` map the live widget sends
+  // ([info, ArrayBuffer]) from the display map the live widget sends
   // back from handle_connect/1.
   if (Array.isArray(payload)) {
     initStatic(ctx, payload);
   } else {
-    initLive(ctx);
+    initLive(ctx, payload);
   }
 }
 
-function initStatic(ctx, [{ cols, rows }, buffer]) {
+function initStatic(ctx, [info, buffer]) {
   // Static frames know their exact size up front, so we don't need
   // FitAddon — just create the terminal at the right cell dimensions
   // and let xterm.js compute the pixel size from font metrics.
+  const display = resolveDisplay(info);
+  applyContainerStyle(ctx, display);
+
   const container = document.createElement("div");
   container.style.width = "100%";
   ctx.root.appendChild(container);
 
   const term = new Terminal({
-    cols,
-    rows,
+    cols: info.cols,
+    rows: info.rows,
     cursorBlink: false,
     cursorStyle: "block",
     disableStdin: true,
     convertEol: false,
-    fontFamily: FONT_FAMILY,
-    fontSize: FONT_SIZE,
+    fontFamily: display.font_family,
+    fontSize: display.font_size,
     scrollback: 0,
-    theme: THEME,
+    theme: display.theme,
   });
 
   term.open(container);
   term.write(new Uint8Array(buffer));
 }
 
-function initLive(ctx) {
-  // Container styling. xterm.js needs a fixed-height host; we give it a
-  // sensible default that fits a typical 80×24 viewport at 13px font.
-  // Users can grow the cell to make this larger and the FitAddon picks
-  // it up via the ResizeObserver below.
+function initLive(ctx, payload) {
+  const display = resolveDisplay(payload);
+  applyContainerStyle(ctx, display);
+
+  // Container styling. xterm.js needs a fixed-height host; the
+  // configured `height` is a CSS length applied verbatim, so users
+  // can pass `"400px"`, `"60vh"`, `"calc(100vh - 200px)"`, etc.
   const container = document.createElement("div");
-  container.style.height = "400px";
+  container.style.height = display.height;
   container.style.width = "100%";
   ctx.root.appendChild(container);
 
   const term = new Terminal({
-    cursorBlink: true,
+    cursorBlink: display.cursor_blink,
     convertEol: false,
-    fontFamily: FONT_FAMILY,
-    fontSize: FONT_SIZE,
-    theme: THEME,
+    fontFamily: display.font_family,
+    fontSize: display.font_size,
+    scrollback: display.scrollback,
+    theme: display.theme,
   });
 
   const fit = new FitAddon();
