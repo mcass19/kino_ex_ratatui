@@ -34,7 +34,7 @@ mix test
 mix test --cover        # must report 100.00% Total
 ```
 
-The suite uses `Kino.Test`'s `configure_livebook_bridge` setup to drive the live widget end-to-end without a real browser.
+The suite uses `Kino.Test`'s `configure_livebook_bridge` setup to drive the live widget end-to-end without a real browser. It includes property-based invariants via [`stream_data`](https://hex.pm/packages/stream_data) — covering display-option round-trip, mount-opts strip-out, ordering preservation, and `configure/1` precedence. Properties run as part of the regular `mix test` invocation.
 
 For the actual browser smoke test, open one of the notebooks under `examples/` in Livebook and run the cells.
 

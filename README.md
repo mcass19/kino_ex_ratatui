@@ -24,12 +24,7 @@ Run [ExRatatui](https://github.com/mcass19/ex_ratatui) apps inside [Livebook](ht
 
 ## Examples
 
-Four notebook examples live under [`examples/`](https://github.com/mcass19/kino_ex_ratatui/tree/main/examples) — open them in Livebook and run the cells:
-
-- [`system_monitor.livemd`](https://github.com/mcass19/kino_ex_ratatui/blob/main/examples/system_monitor.livemd) — a callback-runtime dashboard with `Gauge` + `Table` that reads `/proc`, `/sys`, and BEAM stats every two seconds. Drop-in port of the [`ex_ratatui` example](https://github.com/mcass19/ex_ratatui/blob/main/examples/system_monitor.exs).
-- [`chat_interface.livemd`](https://github.com/mcass19/kino_ex_ratatui/blob/main/examples/chat_interface.livemd) — a mock AI chat exercising `Markdown`, `Textarea`, `Throbber`, `Scrollbar`, and `/` slash-command autocomplete via a `Popup`.
-- [`reducer_counter.livemd`](https://github.com/mcass19/kino_ex_ratatui/blob/main/examples/reducer_counter.livemd) — the same App contract written against the reducer runtime, plus a `Subscription.interval` that ticks the counter every second.
-- [`theming.livemd`](https://github.com/mcass19/kino_ex_ratatui/blob/main/examples/theming.livemd) — the same showcase App rendered with seven different display configurations (One Dark, Solarized Light, Dracula, custom font + size, no-blink + custom stopped message, side-by-side static gallery via `Kino.Layout.grid/1`).
+Four notebook examples live under [`examples/`](https://github.com/mcass19/kino_ex_ratatui/tree/main/examples) — open them in Livebook and run the cells. See the [catalog](https://github.com/mcass19/kino_ex_ratatui/blob/main/examples/README.md) for a one-liner per notebook and a recommended starting point.
 
 ## Installation
 
