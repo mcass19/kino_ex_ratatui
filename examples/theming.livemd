@@ -255,7 +255,7 @@ Kino.ExRatatui.new(ThemeShowcase,
 
 ## 7 · Cursor and stopped-message overrides
 
-`:cursor_blink` is a boolean (xterm.js's option of the same name); `:stopped_message` is the dim italic text painted into the iframe after the App returns `{:stop, _}` or `mount/1` fails.
+`:cursor_blink` is a boolean (xterm.js's option of the same name); `:stopped_message` is the italic text shown in an accessible `role="status"` overlay over the xterm container after the App returns `{:stop, _}` or `mount/1` fails. Screen readers announce it via `aria-live="polite"`.
 
 Press `q` in the cell below to see the custom stopped message.
 
