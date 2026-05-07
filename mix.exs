@@ -58,6 +58,9 @@ defmodule KinoExRatatui.MixProject do
       {:kino, "~> 0.13"},
       {:telemetry, "~> 1.0"},
 
+      # Test
+      {:stream_data, "~> 1.1", only: :test},
+
       # Dev
       {:ex_doc, "~> 0.35", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: :dev, runtime: false},

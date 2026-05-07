@@ -3,6 +3,7 @@ defmodule Kino.ExRatatui.ConfigureTest do
   # environment under :kino_ex_ratatui. Each test snapshots the env on
   # entry and restores it on exit so order is irrelevant.
   use ExUnit.Case, async: false
+  use ExUnitProperties
 
   alias Kino.JS.DataStore
   alias KinoExRatatui.Test.Counter
@@ -211,5 +212,93 @@ defmodule Kino.ExRatatui.ConfigureTest do
         Kino.ExRatatui.new(Counter, theme: :neon)
       end
     end
+  end
+
+  describe "properties" do
+    property "configure/1 stores each {key, value} pair under :kino_ex_ratatui env" do
+      check all(opts <- configure_opts()) do
+        :ok = Kino.ExRatatui.configure(opts)
+
+        for {key, value} <- opts do
+          assert Application.get_env(:kino_ex_ratatui, key) == value
+        end
+
+        # Reset between iterations so leftover keys don't leak
+        # precedence into the next round.
+        for {key, _} <- opts do
+          Application.delete_env(:kino_ex_ratatui, key)
+        end
+      end
+    end
+
+    property "per-instance value always wins over a configure/1 value for the same key" do
+      check all(
+              key <- StreamData.member_of(display_keys()),
+              configured <- valid_value(key),
+              instance <- valid_value(key),
+              configured != instance
+            ) do
+        :ok = Kino.ExRatatui.configure([{key, configured}])
+
+        kino = Kino.ExRatatui.new(Counter, [{key, instance}])
+
+        try do
+          assert :sys.get_state(kino.pid).ctx.assigns.display[key] == instance
+        after
+          if Process.alive?(kino.pid), do: GenServer.stop(kino.pid, :shutdown)
+          Application.delete_env(:kino_ex_ratatui, key)
+        end
+      end
+    end
+  end
+
+  defp display_keys do
+    [
+      :theme,
+      :font_family,
+      :font_size,
+      :height,
+      :cursor_blink,
+      :scrollback,
+      :stopped_message
+    ]
+  end
+
+  defp valid_value(:theme),
+    do:
+      StreamData.one_of([
+        StreamData.constant(:dark),
+        StreamData.constant(:light),
+        StreamData.constant(:livebook)
+      ])
+
+  defp valid_value(:font_family),
+    do: StreamData.string(:printable, min_length: 1, max_length: 32)
+
+  defp valid_value(:font_size), do: StreamData.positive_integer()
+
+  defp valid_value(:height), do: StreamData.string(:printable, min_length: 1, max_length: 32)
+
+  defp valid_value(:cursor_blink), do: StreamData.boolean()
+
+  defp valid_value(:scrollback), do: StreamData.integer(0..10_000)
+
+  defp valid_value(:stopped_message), do: StreamData.string(:printable, max_length: 32)
+
+  # Keyword-list generator for `configure/1`: at most 4 unique-key
+  # entries drawn from the display set, each with a generator-valid
+  # value. Duplicate keys would make `Application.put_env` last-write-
+  # wins and the per-key assertion brittle.
+  defp configure_opts do
+    StreamData.uniq_list_of(
+      StreamData.bind(StreamData.member_of(display_keys()), fn key ->
+        StreamData.bind(valid_value(key), fn value ->
+          StreamData.constant({key, value})
+        end)
+      end),
+      uniq_fun: &elem(&1, 0),
+      max_length: 4,
+      min_length: 1
+    )
   end
 end
