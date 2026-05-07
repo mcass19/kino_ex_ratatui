@@ -62,6 +62,7 @@ defmodule Kino.ExRatatui do
   alias ExRatatui.Session
   alias ExRatatui.Transport
   alias ExRatatui.Transport.ByteStream
+  alias Kino.ExRatatui.Telemetry
   alias Kino.JS, as: KinoJS
   alias Kino.JS.Live, as: KinoLive
 
@@ -187,20 +188,22 @@ defmodule Kino.ExRatatui do
         # doesn't exist yet, and xterm.js will replay nothing.
         {:noreply, ctx}
 
-      %{session: session, server: server} ->
+      %{session: session, server: server, mod: mod} ->
+        Telemetry.execute([:input, :forward], %{}, %{mod: mod, byte_count: byte_size(bytes)})
         _ = ByteStream.forward_input(session, server, bytes)
         {:noreply, ctx}
     end
   end
 
   @impl true
-  def handle_info({:DOWN, ref, :process, _pid, _reason}, ctx)
+  def handle_info({:DOWN, ref, :process, _pid, reason}, ctx)
       when ref == ctx.assigns.server_ref do
     # App quit (`{:stop, state}`, `mount/1` failed, …). Paint the
     # stopped-state screen (clear + dim message) so the user sees a
     # clean "re-evaluate the cell" hint instead of a frozen frame
     # with the cursor sitting on it. Then drop the server refs so we
     # don't try to stop a dead process from terminate/2.
+    Telemetry.execute([:transport, :disconnect], %{}, %{mod: ctx.assigns.mod, reason: reason})
     broadcast_event(ctx, "ansi", {:binary, %{}, @stopped_screen})
     {:noreply, assign(ctx, session: nil, server: nil, server_ref: nil)}
   end
@@ -208,25 +211,55 @@ defmodule Kino.ExRatatui do
   def handle_info(_msg, ctx), do: {:noreply, ctx}
 
   @impl true
-  def terminate(_reason, ctx) do
+  def terminate(reason, ctx) do
+    # Only fire disconnect from terminate when the runtime hasn't
+    # already exited via :DOWN — that handler clears `:server` to nil
+    # and we'd double-emit otherwise.
     case ctx.assigns.server do
-      nil -> :ok
-      pid -> if Process.alive?(pid), do: GenServer.stop(pid, :shutdown), else: :ok
+      nil ->
+        :ok
+
+      pid ->
+        if Process.alive?(pid) do
+          Telemetry.execute([:transport, :disconnect], %{}, %{
+            mod: ctx.assigns.mod,
+            reason: reason
+          })
+
+          GenServer.stop(pid, :shutdown)
+        else
+          :ok
+        end
     end
   end
 
   ## Helpers
 
   defp start_runtime(ctx, cols, rows) do
+    Telemetry.span(
+      [:transport, :connect],
+      %{mod: ctx.assigns.mod, width: cols, height: rows},
+      fn -> do_start_runtime(ctx, cols, rows) end
+    )
+  end
+
+  defp do_start_runtime(ctx, cols, rows) do
     session = Session.new(cols, rows)
+    mod = ctx.assigns.mod
 
     writer = fn bytes ->
-      broadcast_event(ctx, "ansi", {:binary, %{}, IO.iodata_to_binary(bytes)})
+      binary = IO.iodata_to_binary(bytes)
+
+      Telemetry.span(
+        [:render, :frame],
+        %{mod: mod, byte_count: byte_size(binary)},
+        fn -> broadcast_event(ctx, "ansi", {:binary, %{}, binary}) end
+      )
     end
 
     opts =
       ctx.assigns.mount_opts
-      |> Keyword.put(:mod, ctx.assigns.mod)
+      |> Keyword.put(:mod, mod)
       |> Keyword.put(:name, nil)
       |> Keyword.put(:transport, {:session, session, writer})
 
@@ -237,6 +270,7 @@ defmodule Kino.ExRatatui do
   end
 
   defp forward_resize(ctx, session, cols, rows) do
+    Telemetry.execute([:resize], %{}, %{mod: ctx.assigns.mod, width: cols, height: rows})
     ByteStream.forward_resize(session, ctx.assigns.server, cols, rows)
     ctx
   end

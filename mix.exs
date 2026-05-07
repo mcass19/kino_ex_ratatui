@@ -38,7 +38,7 @@ defmodule KinoExRatatui.MixProject do
 
   def application do
     [
-      extra_applications: [:logger]
+      extra_applications: [:logger, :telemetry]
     ]
   end
 
@@ -56,6 +56,7 @@ defmodule KinoExRatatui.MixProject do
     [
       {:ex_ratatui, "~> 0.8"},
       {:kino, "~> 0.13"},
+      {:telemetry, "~> 1.0"},
 
       # Dev
       {:ex_doc, "~> 0.35", only: :dev, runtime: false},
@@ -72,7 +73,7 @@ defmodule KinoExRatatui.MixProject do
         "Changelog" => @changelog_url
       },
       keywords: ~w(kino livebook tui terminal ratatui ex_ratatui xterm),
-      files: ~w(lib .formatter.exs mix.exs README.md LICENSE CHANGELOG.md)
+      files: ~w(lib guides .formatter.exs mix.exs README.md LICENSE CHANGELOG.md)
     ]
   end
 
@@ -82,12 +83,19 @@ defmodule KinoExRatatui.MixProject do
       source_ref: "v#{@version}",
       extras: [
         "README.md": [title: "Overview"],
+        "guides/telemetry.md": [title: "Telemetry"],
         "CONTRIBUTING.md": [title: "Contributing"],
         "CHANGELOG.md": [title: "Changelog"]
+      ],
+      groups_for_extras: [
+        Guides: ~r"guides/.?"
       ],
       groups_for_modules: [
         Widgets: [
           Kino.ExRatatui
+        ],
+        Internals: [
+          Kino.ExRatatui.Telemetry
         ]
       ]
     ]
