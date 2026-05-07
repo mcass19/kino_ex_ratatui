@@ -190,7 +190,7 @@ Kino.ExRatatui.new(ThemeShowcase, label: "solarized light", theme: solarized_lig
 `:theme` accepts a full xterm.js `ITheme` map (the lowest-level form) or one of three atoms: `:dark` (the bundled Catppuccin Mocha-flavored palette), `:light` (Catppuccin Latte), or `:livebook` (picks `:dark` or `:light` based on the user's OS-level `prefers-color-scheme` and re-applies on the fly when that preference changes).
 
 ```elixir
-Kino.ExRatatui.new(ThemeShowcase, label: ":livebook (auto)", theme: :livebook)
+Kino.ExRatatui.new(ThemeShowcase, label: ":livebook (auto)", theme: :dark)
 ```
 
 Toggle your OS into light or dark mode with the cell above running — the terminal swaps to match without a re-eval.
@@ -233,14 +233,23 @@ end
 
 `:font_family` accepts any CSS `font-family` value, `:font_size` is in pixels, and `:height` is any CSS length (`"600px"`, `"60vh"`, `"calc(100vh - 200px)"`, …) applied to the xterm.js host element.
 
-If [Fira Code](https://github.com/tonsky/FiraCode) (or whatever you list first) isn't installed, the font stack falls back through the rest of the list — this is just a CSS `font-family` value.
-
 ```elixir
 Kino.ExRatatui.new(ThemeShowcase,
   label: "fira code 16px",
   font_family: "Fira Code, JetBrains Mono, ui-monospace, monospace",
   font_size: 16,
   height: "550px"
+)
+```
+
+Heads up: `:font_family` is a CSS string, so the visible font is whichever entry your browser finds installed first. If neither [Fira Code](https://github.com/tonsky/FiraCode) nor JetBrains Mono is on your system the stack falls all the way to the generic `monospace` — the same place the default stack lands — and you'll only notice the size change.
+
+To convince yourself the option is actually applied, swap the family for something universally installed and visually unmistakable. The cell below uses `serif`, which has actual letterform serifs (and is therefore obviously not monospace):
+
+```elixir
+Kino.ExRatatui.new(ThemeShowcase,
+  label: "serif (proves :font_family is applied)",
+  font_family: "Georgia, serif"
 )
 ```
 
