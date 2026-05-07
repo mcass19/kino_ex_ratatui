@@ -521,3 +521,4 @@ Kino.ExRatatui.new(ChatApp)
 * The original version: [`ex_ratatui/examples/chat_interface.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/chat_interface.exs).
 * [`examples/system_monitor.livemd`](system_monitor.livemd) — a callback-runtime dashboard with `Gauge` + `Table`.
 * [`examples/reducer_counter.livemd`](reducer_counter.livemd) — the same App contract written against the reducer runtime, with subscriptions.
+* [`examples/theming.livemd`](theming.livemd) — every per-instance display option (theme, font, height, cursor, stopped message) on the same App, side by side.

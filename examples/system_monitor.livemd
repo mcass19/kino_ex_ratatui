@@ -415,3 +415,4 @@ Kino.ExRatatui.new(SystemMonitor)
 * The original version: [`ex_ratatui/examples/system_monitor.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/system_monitor.exs).
 * [`examples/chat_interface.livemd`](chat_interface.livemd) — a longer interactive example exercising `Markdown`, `Textarea`, `Throbber`, and `SlashCommands`.
 * [`examples/reducer_counter.livemd`](reducer_counter.livemd) — the same App contract written against the reducer runtime.
+* [`examples/theming.livemd`](theming.livemd) — every per-instance display option (theme, font, height, cursor, stopped message) on the same App, side by side.
