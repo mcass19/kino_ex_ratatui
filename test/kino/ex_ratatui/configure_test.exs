@@ -232,11 +232,15 @@ defmodule Kino.ExRatatui.ConfigureTest do
     end
 
     property "per-instance value always wins over a configure/1 value for the same key" do
+      # `distinct_pair/1` produces `{configured, instance}` known to be
+      # distinct without a `check all` filter. The previous
+      # `configured != instance` filter blew up StreamData's
+      # filter-too-narrow guard on narrow generators (notably
+      # :cursor_blink, which has only 2 valid values, so the filter
+      # threw away half the generation space).
       check all(
               key <- StreamData.member_of(display_keys()),
-              configured <- valid_value(key),
-              instance <- valid_value(key),
-              configured != instance
+              {configured, instance} <- distinct_pair(key)
             ) do
         :ok = Kino.ExRatatui.configure([{key, configured}])
 
@@ -300,5 +304,57 @@ defmodule Kino.ExRatatui.ConfigureTest do
       max_length: 4,
       min_length: 1
     )
+  end
+
+  # Per-key generator producing `{configured, instance}` pairs that are
+  # always distinct by construction. Avoids the
+  # `configured != instance` filter that runs into
+  # `StreamData.FilterTooNarrowError` for narrow generators like
+  # `:cursor_blink` (which only has 2 valid values).
+  defp distinct_pair(:theme) do
+    # Three valid atoms; pick one and pick something else from the rest.
+    StreamData.bind(StreamData.member_of([:dark, :light, :livebook]), fn first ->
+      StreamData.bind(StreamData.member_of([:dark, :light, :livebook] -- [first]), fn second ->
+        StreamData.constant({first, second})
+      end)
+    end)
+  end
+
+  defp distinct_pair(:cursor_blink) do
+    # Only two valid values — flip them.
+    StreamData.member_of([{true, false}, {false, true}])
+  end
+
+  defp distinct_pair(:font_size) do
+    # Always return n + 1 for the second value.
+    StreamData.bind(StreamData.positive_integer(), fn a ->
+      StreamData.constant({a, a + 1})
+    end)
+  end
+
+  defp distinct_pair(:scrollback) do
+    StreamData.bind(StreamData.integer(0..10_000), fn a ->
+      StreamData.constant({a, a + 1})
+    end)
+  end
+
+  defp distinct_pair(:font_family) do
+    # Append a marker to the second value — guarantees they differ
+    # without filtering.
+    distinct_string_pair(min_length: 1, max_length: 32)
+  end
+
+  defp distinct_pair(:height) do
+    distinct_string_pair(min_length: 1, max_length: 32)
+  end
+
+  defp distinct_pair(:stopped_message) do
+    distinct_string_pair(max_length: 32)
+  end
+
+  defp distinct_string_pair(string_opts) do
+    StreamData.bind(StreamData.string(:printable, string_opts), fn s ->
+      StreamData.constant({s, s <> "x"})
+    end)
   end
 end
