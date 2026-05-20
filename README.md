@@ -16,6 +16,7 @@ Run [ExRatatui](https://github.com/mcass19/ex_ratatui) apps inside [Livebook](ht
 - **Same App, same surface** — any module implementing `ExRatatui.App` runs unchanged.
 - **Responsive sizing** — xterm.js's `FitAddon` derives cell dimensions and reports resize events; the App sees them as `%ExRatatui.Event.Resize{}` in `handle_event/2`.
 - **Static frames** — `Kino.ExRatatui.frame/2` renders a one-shot `[{widget, rect}, ...]` list and ships the bytes to xterm.js. Useful for documentation, side-by-side comparisons via `Kino.Layout.grid/1`, screenshots, etc.
+- **Inline images** — the bundled [`@xterm/addon-image`](https://www.npmjs.com/package/@xterm/addon-image) registers Sixel and iTerm2 inline-image parsers, so `ExRatatui.Widgets.Image` renders PNG / JPEG / GIF / WebP / BMP end-to-end in Livebook. Build images with `ExRatatui.Image.new/2` and place them in the widget tree like any other widget; pass `protocol: :sixel` or `protocol: :iterm2` at construction time.
 - **Themeable** — pass `:theme`, `:font_family`, `:font_size`, `:height`, `:cursor_blink`, `:scrollback`, and `:stopped_message` to `new/2` (or the static-friendly subset to `frame/2`) to override the defaults per cell. The `:theme` map is the full xterm.js [`ITheme`](https://xtermjs.org/docs/api/terminal/interfaces/itheme/) — 16 ANSI colors, selection, cursor accents, the lot. Use the `:dark` / `:light` / `:livebook` atom shorthands to pick a bundled palette; `:livebook` follows the user's `prefers-color-scheme` and live-switches.
 - **Global defaults** — `Kino.ExRatatui.configure/1` writes display defaults to the `:kino_ex_ratatui` Application environment. Per-instance opts still win key-by-key. See the [Configuration guide](https://hexdocs.pm/kino_ex_ratatui/configuration.html).
 - **Accessible stopped state** — when the runtime exits the widget renders a `role="status"` `aria-live="polite"` DOM overlay over the xterm container. Screen readers announce it; sighted users see a clean italic message instead of the frozen final frame. Customise the text with `:stopped_message`.
@@ -24,7 +25,7 @@ Run [ExRatatui](https://github.com/mcass19/ex_ratatui) apps inside [Livebook](ht
 
 ## Examples
 
-Four notebook examples live under [`examples/`](https://github.com/mcass19/kino_ex_ratatui/tree/main/examples) — open them in Livebook and run the cells. See the [catalog](https://github.com/mcass19/kino_ex_ratatui/blob/main/examples/README.md) for a one-liner per notebook and a recommended starting point.
+Five notebook examples live under [`examples/`](https://github.com/mcass19/kino_ex_ratatui/tree/main/examples) — open them in Livebook and run the cells. See the [catalog](https://github.com/mcass19/kino_ex_ratatui/blob/main/examples/README.md) for a one-liner per notebook and a recommended starting point.
 
 ## Installation
 

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Inline image rendering via `@xterm/addon-image`.** The bundled JS hook now loads [`@xterm/addon-image`](https://www.npmjs.com/package/@xterm/addon-image) 0.9.0 in both the live (`new/2`) and static (`frame/2`) init paths, registering Sixel (`DCS q ...`) and iTerm2 inline-image (`ESC ] 1337 ; File=... ^G`) parser handlers on the xterm.js terminal. Without it those escape sequences were silently swallowed and `ExRatatui.Widgets.Image` (introduced in [ex_ratatui 0.10](https://github.com/mcass19/ex_ratatui/blob/main/CHANGELOG.md#0100---2026-05-19)) rendered nothing in Livebook. Construct images with `ExRatatui.Image.new/2` passing `protocol: :sixel` or `protocol: :iterm2` — xterm.js does not implement the Kitty graphics protocol. Bundle grows ~60 KB minified; no Elixir API change, no per-instance opt change. Moduledoc gained an **Inline images** section pointing at the [ex_ratatui Images guide](https://hexdocs.pm/ex_ratatui/images.html).
+
+- **`examples/new_widgets.livemd` — tour of the three widgets introduced in ex_ratatui 0.10.** One consolidated Livebook notebook covering `ExRatatui.Widgets.Image` (a static frame with the new image addon plus an interactive App that cycles `:sixel` / `:iterm2` at runtime), `ExRatatui.Widgets.CodeBlock` (syntect-highlighted snippet with `:solarized_dark`, line numbers, and emphasis on lines 3..5), and `ExRatatui.Widgets.BigText` (slide-deck banner showing `:full` and `:quadrant` density variants). Closes with a `Kino.Layout.grid/2` side-by-side comparison of all three. Catalogue entry added to [`examples/README.md`](examples/README.md). `Mix.install` pins `~> 0.3` so the notebook picks up the addon-image bundle as soon as 0.3.0 is published.
+
 ## [0.2.0] - 2026-05-07
 
 ### Added
