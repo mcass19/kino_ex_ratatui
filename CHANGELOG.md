@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-20
+
 ### Added
 
 - **Inline image rendering via `@xterm/addon-image`.** The bundled JS hook now loads [`@xterm/addon-image`](https://www.npmjs.com/package/@xterm/addon-image) 0.9.0 in both the live (`new/2`) and static (`frame/2`) init paths, registering Sixel (`DCS q ...`) and iTerm2 inline-image (`ESC ] 1337 ; File=... ^G`) parser handlers on the xterm.js terminal. Without it those escape sequences were silently swallowed and `ExRatatui.Widgets.Image` (introduced in [ex_ratatui 0.10](https://github.com/mcass19/ex_ratatui/blob/main/CHANGELOG.md#0100---2026-05-19)) rendered nothing in Livebook. Construct images with `ExRatatui.Image.new/2` passing `protocol: :sixel` or `protocol: :iterm2` — xterm.js does not implement the Kitty graphics protocol. Bundle grows ~60 KB minified; no Elixir API change, no per-instance opt change. Moduledoc gained an **Inline images** section pointing at the [ex_ratatui Images guide](https://hexdocs.pm/ex_ratatui/images.html).
@@ -48,7 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Test suite** — 22 tests via `Kino.Test`'s `configure_livebook_bridge` + `push_event/3` + `assert_broadcast_event/3`, covering: lazy boot, mount-opts pass-through, handle_connect payload, first/subsequent resize, input round-trip, input arriving before first resize, server `:DOWN`, terminate cleanup, mount failure, unrelated `handle_info` messages, and `__assets_info__/0`. Runs async in 0.2s, 100% line coverage (test fixtures excluded via `test_coverage: [ignore_modules: [...]]`).
 - **Three bundled example notebooks** under `examples/` — `system_monitor.livemd` (callback-runtime dashboard porting `ex_ratatui/examples/system_monitor.exs` with `Gauge`, `Table`, `/proc` polling), `chat_interface.livemd` (callback-runtime AI-chat mock exercising `Markdown`, `Textarea`, `Throbber`, `Scrollbar`, and `/`-prefixed `SlashCommands` autocomplete via `Popup` — ported from the original imperative `ExRatatui.run/1` loop in `ex_ratatui/examples/chat_interface.exs`), and `reducer_counter.livemd` (reducer-runtime counter with a `Subscription.interval` plus a `Kino.ExRatatui.frame/2` static-frame demo). Each notebook cross-references the other two and links to the relevant runtime guide so any one of them is a complete jumping-off point.
 
-[Unreleased]: https://github.com/mcass19/kino_ex_ratatui/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/mcass19/kino_ex_ratatui/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/mcass19/kino_ex_ratatui/releases/tag/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/mcass19/kino_ex_ratatui/releases/tag/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/mcass19/kino_ex_ratatui/releases/tag/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/mcass19/kino_ex_ratatui/releases/tag/v0.1.0

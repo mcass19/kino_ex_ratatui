@@ -4,7 +4,7 @@
 # When iterating on kino_ex_ratatui itself, swap the line below for
 # `{:kino_ex_ratatui, path: Path.expand("..", __DIR__)}`.
 Mix.install([
-  {:kino_ex_ratatui, "~> 0.3"},
+  {:kino_ex_ratatui, "~> 0.2"},
   {:req, "~> 0.5"}
 ])
 ```
