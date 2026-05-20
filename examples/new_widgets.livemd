@@ -1,0 +1,274 @@
+# kino_ex_ratatui — New Widgets in ex_ratatui 0.10
+
+```elixir
+# When iterating on kino_ex_ratatui itself, swap the line below for
+# `{:kino_ex_ratatui, path: Path.expand("..", __DIR__)}`.
+Mix.install([
+  {:kino_ex_ratatui, "~> 0.3"},
+  {:req, "~> 0.5"}
+])
+```
+
+## What this notebook shows
+
+A tour of the three widgets introduced in [ex_ratatui 0.10](https://github.com/mcass19/ex_ratatui/blob/main/CHANGELOG.md#0100---2026-05-19), rendered inside Livebook:
+
+- **`ExRatatui.Widgets.Image`** — PNG / JPEG / GIF / WebP / BMP rendering. The bundled `@xterm/addon-image` makes Sixel and iTerm2 inline-image protocols work end-to-end in Livebook. Pick `:sixel` or `:iterm2` at construction time (xterm.js does not implement the Kitty graphics protocol).
+- **`ExRatatui.Widgets.CodeBlock`** — syntax-highlighted source code with seven bundled syntect themes, optional line numbers, and per-line emphasis.
+- **`ExRatatui.Widgets.BigText`** — oversized 8×8 pixel text for slide titles and banners, with eight density variants.
+
+Each section below builds a small static frame so the layout stays predictable across re-evals. The image section also includes a tiny interactive app that cycles protocols at runtime.
+
+## Image — a static frame
+
+Fetches a 320×240 [picsum.photos](https://picsum.photos) JPEG, decodes it via `ExRatatui.Image.new/2`, and renders it inside a framed `Block`. The fetched bytes are kept in a notebook-level binding so re-running the cell doesn't hammer the network.
+
+```elixir
+alias ExRatatui.Image
+alias ExRatatui.Layout.Rect
+alias ExRatatui.Style
+alias ExRatatui.Text.{Line, Span}
+alias ExRatatui.Widgets.{Block, Paragraph}
+
+fallback_png =
+  Base.decode64!(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+  )
+
+image_bytes =
+  case Req.get("https://picsum.photos/320/240") do
+    {:ok, %Req.Response{status: 200, body: body}} -> body
+    _ -> fallback_png
+  end
+
+{:ok, image} = Image.new(image_bytes, protocol: :sixel, resize: :fit)
+{img_w, img_h} = Image.dimensions(image)
+
+Kino.ExRatatui.frame(
+  [
+    {image, %Rect{x: 1, y: 1, width: 48, height: 16}},
+    {%Paragraph{
+       text: %Line{
+         spans: [
+           %Span{
+             content: " #{img_w}×#{img_h}px ",
+             style: %Style{fg: :cyan, modifiers: [:bold]}
+           },
+           %Span{content: " via Sixel ", style: %Style{fg: :gray}}
+         ]
+       },
+       block: %Block{
+         borders: [:all],
+         border_type: :rounded,
+         border_style: %Style{fg: :magenta},
+         title: " image "
+       }
+     }, %Rect{x: 0, y: 18, width: 50, height: 3}}
+  ],
+  cols: 50,
+  rows: 21
+)
+```
+
+If the cell above renders text glyphs instead of a picture, the xterm.js parser in the Livebook frontend did not consume the Sixel escape sequence. The bundled `@xterm/addon-image` covers Sixel + iTerm2 — confirm the asset bundle is current (`mix deps.update kino_ex_ratatui`).
+
+## Image — interactive protocol switch
+
+Cycle between `:sixel` and `:iterm2` at runtime. The `image` field on state is rebuilt every time the protocol changes, since `ExRatatui.Image.new/2` bakes the protocol into the resource.
+
+```elixir
+defmodule ImageProtocolDemo do
+  use ExRatatui.App
+
+  alias ExRatatui.Event
+  alias ExRatatui.Image
+  alias ExRatatui.Layout
+  alias ExRatatui.Layout.Rect
+  alias ExRatatui.Style
+  alias ExRatatui.Widgets.{Block, Paragraph}
+
+  @protocols [:sixel, :iterm2]
+
+  @impl true
+  def mount(opts) do
+    bytes = Keyword.fetch!(opts, :image_bytes)
+    {:ok, image} = Image.new(bytes, protocol: :sixel, resize: :fit)
+    {:ok, %{bytes: bytes, image: image, protocol: :sixel}}
+  end
+
+  @impl true
+  def render(state, frame) do
+    area = %Rect{x: 0, y: 0, width: frame.width, height: frame.height}
+
+    [image_area, footer_area] =
+      Layout.split(area, :vertical, [{:min, 0}, {:length, 3}])
+
+    footer = %Paragraph{
+      text: " p = cycle protocol (#{state.protocol})  ·  q = quit ",
+      style: %Style{fg: :dark_gray},
+      block: %Block{borders: [:top], border_style: %Style{fg: :dark_gray}}
+    }
+
+    [{state.image, image_area}, {footer, footer_area}]
+  end
+
+  @impl true
+  def handle_event(%Event.Key{code: "q"}, state), do: {:stop, state}
+
+  def handle_event(%Event.Key{code: "p"}, state) do
+    next = next_in(@protocols, state.protocol)
+    {:ok, image} = Image.new(state.bytes, protocol: next, resize: :fit)
+    {:noreply, %{state | image: image, protocol: next}}
+  end
+
+  def handle_event(_event, state), do: {:noreply, state}
+
+  defp next_in(list, current) do
+    idx = Enum.find_index(list, &(&1 == current))
+    Enum.at(list, rem(idx + 1, length(list)))
+  end
+end
+
+Kino.ExRatatui.new(ImageProtocolDemo, image_bytes: image_bytes, height: "260px")
+```
+
+## CodeBlock — syntax-highlighted source
+
+A single `ExRatatui.Widgets.CodeBlock` with the `:solarized_dark` theme, line numbers, and emphasis on lines 3..5. The text body comes through verbatim — syntect's bundled Rust syntax does the tokenisation.
+
+```elixir
+alias ExRatatui.Layout.Rect
+alias ExRatatui.Widgets.{Block, CodeBlock}
+
+snippet = """
+defmodule Fib do
+  @doc "Compute the nth fibonacci number."
+  def of(0), do: 0
+  def of(1), do: 1
+  def of(n), do: of(n - 1) + of(n - 2)
+
+  def take(n), do: Enum.map(0..(n - 1), &of/1)
+end
+"""
+
+Kino.ExRatatui.frame(
+  [
+    {%CodeBlock{
+       content: snippet,
+       language: "elixir",
+       theme: :solarized_dark,
+       line_numbers: true,
+       highlight_lines: [3..5],
+       block: %Block{borders: [:all], border_type: :rounded, title: " fib.ex "}
+     }, %Rect{x: 0, y: 0, width: 70, height: 12}}
+  ],
+  cols: 70,
+  rows: 12
+)
+```
+
+Swap `theme:` for one of `:base16_ocean_dark`, `:base16_ocean_light`, `:base16_eighties_dark`, `:base16_mocha_dark`, `:inspired_github`, `:solarized_dark`, `:solarized_light`. The `language:` field accepts any syntect token name (`rust`, `python`, `ruby`, `javascript`, `json`, `elixir`, …) or `nil` for plain text.
+
+## BigText — slide-deck banner
+
+Eight `pixel_size` variants render the same string at different densities. The static frame below stacks `:full` on top of `:quadrant` so the size difference reads at a glance.
+
+```elixir
+alias ExRatatui.BigText
+alias ExRatatui.Layout
+alias ExRatatui.Layout.Rect
+alias ExRatatui.Style
+alias ExRatatui.Widgets.Block
+
+area = %Rect{x: 0, y: 0, width: 70, height: 18}
+[top, bottom] = Layout.split(area, :vertical, [{:length, 10}, {:min, 0}])
+
+Kino.ExRatatui.frame(
+  [
+    {BigText.new("EX_RATATUI",
+       pixel_size: :full,
+       alignment: :center,
+       style: %Style{fg: :magenta, modifiers: [:bold]},
+       block: %Block{
+         borders: [:all],
+         border_type: :rounded,
+         border_style: %Style{fg: :dark_gray},
+         title: " :full "
+       }
+     ), top},
+    {BigText.new("0.10",
+       pixel_size: :quadrant,
+       alignment: :center,
+       style: %Style{fg: :cyan, modifiers: [:bold]},
+       block: %Block{
+         borders: [:all],
+         border_type: :rounded,
+         border_style: %Style{fg: :dark_gray},
+         title: " :quadrant "
+       }
+     ), bottom}
+  ],
+  cols: 70,
+  rows: 18
+)
+```
+
+Full density variant list: `:full` (8 rows, biggest impact), `:half_height`, `:half_width`, `:quadrant`, `:third_height`, `:sextant`, `:quarter_height`, `:octant` (1 row × half cols, densest).
+
+## Side-by-side grid
+
+Three static frames composed with `Kino.Layout.grid/2` — the same pattern the [theming notebook](theming.livemd) uses for theme comparisons, applied here to the three new widgets.
+
+```elixir
+alias ExRatatui.BigText
+alias ExRatatui.Layout.Rect
+alias ExRatatui.Style
+alias ExRatatui.Widgets.{Block, CodeBlock}
+
+big_text_frame =
+  Kino.ExRatatui.frame(
+    [
+      {BigText.new("0.10",
+         pixel_size: :quadrant,
+         alignment: :center,
+         style: %Style{fg: :magenta, modifiers: [:bold]},
+         block: %Block{borders: [:all], border_type: :rounded, title: " BigText "}
+       ), %Rect{x: 0, y: 0, width: 32, height: 8}}
+    ],
+    cols: 32,
+    rows: 8
+  )
+
+code_frame =
+  Kino.ExRatatui.frame(
+    [
+      {%CodeBlock{
+         content: "fn fib(n: u32) -> u32 {\n  if n < 2 { n }\n  else { fib(n-1) + fib(n-2) }\n}\n",
+         language: "rust",
+         theme: :base16_mocha_dark,
+         line_numbers: true,
+         block: %Block{borders: [:all], border_type: :rounded, title: " CodeBlock "}
+       }, %Rect{x: 0, y: 0, width: 38, height: 8}}
+    ],
+    cols: 38,
+    rows: 8
+  )
+
+image_frame =
+  Kino.ExRatatui.frame(
+    [
+      {image, %Rect{x: 1, y: 1, width: 30, height: 6}}
+    ],
+    cols: 32,
+    rows: 8
+  )
+
+Kino.Layout.grid([big_text_frame, code_frame, image_frame], columns: 3)
+```
+
+## Where to next
+
+* [Images guide](https://hexdocs.pm/ex_ratatui/images.html) — the full `ExRatatui.Image` API, protocol / resize matrix, and font-size caveats for Kitty / Sixel / iTerm2 scaling.
+* The upstream interactive demos exercise every option at runtime: [`image_demo.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/image_demo.exs), [`code_block_demo.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/code_block_demo.exs), [`big_text_demo.exs`](https://github.com/mcass19/ex_ratatui/blob/main/examples/big_text_demo.exs).
+* [`examples/theming.livemd`](theming.livemd) — every per-instance display option (theme, font, height, cursor, stopped message) on the same App, side by side.
+* [`examples/chat_interface.livemd`](chat_interface.livemd) — a richer callback-runtime app exercising `Markdown`, `Textarea`, `Throbber`, and `SlashCommands`.

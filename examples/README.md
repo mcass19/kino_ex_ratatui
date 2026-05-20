@@ -10,6 +10,7 @@ A catalog of `kino_ex_ratatui` Livebook notebooks. Each stands alone — open it
 | [`chat_interface.livemd`](chat_interface.livemd) | Callback-runtime AI-chat mock exercising `Markdown`, `Textarea`, `Throbber`, `Scrollbar`, and `/`-prefixed `SlashCommands` autocomplete via `Popup`. The most visually rich example. |
 | [`reducer_counter.livemd`](reducer_counter.livemd) | Reducer-runtime counter with `init/1` + `update/2` and a `Subscription.interval` ticking every second. Bonus: a static `Kino.ExRatatui.frame/2` widget gallery at the end. |
 | [`theming.livemd`](theming.livemd) | The same showcase App rendered nine ways: default, One Dark, Solarized Light, the `:dark` / `:light` / `:livebook` atom shorthands, `configure/1` global defaults, custom font + size, no-blink + custom stopped message, side-by-side static gallery, and call-site validation. |
+| [`new_widgets.livemd`](new_widgets.livemd) | A tour of the three widgets introduced in [ex_ratatui 0.10](https://github.com/mcass19/ex_ratatui/blob/main/CHANGELOG.md#0100---2026-05-19): `ExRatatui.Widgets.Image` rendered over Sixel (with an interactive protocol switcher), `ExRatatui.Widgets.CodeBlock` with syntect themes and line emphasis, and `ExRatatui.Widgets.BigText` for slide-deck banners. Closes with a side-by-side grid of all three. |
 
 ## Where to start
 
