@@ -243,14 +243,13 @@ code_frame =
   Kino.ExRatatui.frame(
     [
       {%CodeBlock{
-         content: "fn fib(n: u32) -> u32 {\n  if n < 2 { n }\n  else { fib(n-1) + fib(n-2) }\n}\n",
+         content: "fn fib(n: u32) -> u32 {\n  match n {\n    0 | 1 => n,\n    _ => fib(n-1)+fib(n-2)\n  }\n}\n",
          language: "rust",
          theme: :base16_mocha_dark,
-         line_numbers: true,
          block: %Block{borders: [:all], border_type: :rounded, title: " CodeBlock "}
-       }, %Rect{x: 0, y: 0, width: 38, height: 8}}
+       }, %Rect{x: 0, y: 0, width: 32, height: 8}}
     ],
-    cols: 38,
+    cols: 32,
     rows: 8
   )
 

@@ -193,9 +193,32 @@ function initStatic(ctx, [info, buffer]) {
     theme: display.theme,
   });
 
-  term.loadAddon(new ImageAddon(IMAGE_ADDON_OPTIONS));
   term.open(container);
-  term.write(new Uint8Array(buffer));
+  // ImageAddon is loaded after `term.open(container)` so its
+  // `activate()` runs against a mounted terminal. The write is
+  // deferred by one animation frame so addon-image's DOM
+  // measurement + canvas overlay positioning settle before the
+  // first byte hits the parser. Without the defer, a single-shot
+  // static frame containing Sixel renders as an empty black
+  // rectangle — the bytes are consumed but the addon hasn't
+  // computed cell offsets yet, so the image paints at (0, 0)
+  // with zero dimensions. Live mode is unaffected because the
+  // first ANSI frame arrives many ticks later anyway (resize →
+  // runtime boot → render). The Kino.Layout.grid path dodges
+  // this accidentally because each cell mounts inside its own
+  // iframe lifecycle that already defers across frames.
+  term.loadAddon(new ImageAddon(IMAGE_ADDON_OPTIONS));
+  const bytes = new Uint8Array(buffer);
+  // Double rAF: first frame, xterm.js's renderer measures the
+  // newly-opened terminal's cell pixel dimensions; second frame,
+  // addon-image's canvas overlay is positioned against those
+  // measurements and ready to receive Sixel. Writing on a single
+  // rAF works for small terminals (the measurement is cheap enough
+  // to complete in the same frame) but larger terminals lose the
+  // image — bytes are consumed before the overlay is positioned.
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => term.write(bytes))
+  );
 
   if (display.themeAtom === "livebook") {
     subscribeLivebookTheme(ctx, term);
