@@ -31,7 +31,18 @@
 //                                              fed straight to term.write
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { ImageAddon } from "@xterm/addon-image";
 import "@xterm/xterm/css/xterm.css";
+
+// Default options for `@xterm/addon-image`. The addon registers Sixel
+// (`DCS q ...`) and iTerm2 inline-image (`ESC ] 1337 ; File=... ^G`)
+// handlers on the xterm parser; without it those sequences would be
+// silently swallowed and `ExRatatui.Widgets.Image` would render
+// nothing in Livebook. Loaded in both live and static modes so an
+// image embedded in `Kino.ExRatatui.frame/2` survives a static
+// snapshot. The defaults match the addon's own — Sixel + iTerm2 on,
+// no Kitty (the addon doesn't ship Kitty), conservative size limits.
+const IMAGE_ADDON_OPTIONS = { sixelSupport: true, iipSupport: true };
 
 // Bundled named themes resolved when Elixir sends a theme atom
 // (`:dark` / `:light` / `:livebook`) instead of a full ITheme map.
@@ -182,6 +193,7 @@ function initStatic(ctx, [info, buffer]) {
     theme: display.theme,
   });
 
+  term.loadAddon(new ImageAddon(IMAGE_ADDON_OPTIONS));
   term.open(container);
   term.write(new Uint8Array(buffer));
 
@@ -213,6 +225,7 @@ function initLive(ctx, payload) {
 
   const fit = new FitAddon();
   term.loadAddon(fit);
+  term.loadAddon(new ImageAddon(IMAGE_ADDON_OPTIONS));
   term.open(container);
   fit.fit();
 

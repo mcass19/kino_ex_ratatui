@@ -101,6 +101,18 @@ defmodule Kino.ExRatatui do
   the [Custom Transports
   guide](https://hexdocs.pm/ex_ratatui/custom_transports.html) for the
   reference shape.
+
+  ## Inline images
+
+  The bundled JS hook loads `@xterm/addon-image`, so
+  `ExRatatui.Widgets.Image` renders end-to-end in Livebook over Sixel
+  and iTerm2 inline-image protocols. Build images with
+  `ExRatatui.Image.new/2` and place them in the widget tree like any
+  other widget — no kino-side configuration is needed. The protocol is
+  picked explicitly at construction time; pass `:sixel` or `:iterm2`
+  (xterm.js does not implement the Kitty graphics protocol). See the
+  [Images guide](https://hexdocs.pm/ex_ratatui/images.html) for the
+  full API.
   """
 
   use Kino.JS, assets_path: "lib/assets/kino_ex_ratatui"
