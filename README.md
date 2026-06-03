@@ -7,7 +7,7 @@
 
 Run [ExRatatui](https://github.com/mcass19/ex_ratatui) apps inside [Livebook](https://livebook.dev) notebooks.
 
-![KinoExRatatui Demo](https://raw.githubusercontent.com/mcass19/kino_ex_ratatui/main/assets/demo.gif)
+![KinoExRatatui Demo](https://raw.githubusercontent.com/mcass19/kino_ex_ratatui/main/.github/demo.gif)
 
 `KinoExRatatui` is a byte-stream transport that pipes the runtime's rendered ANSI through xterm.js and forwards keypresses and resize events back. Implemented as a `Kino.JS.Live` widget on top of `ExRatatui.Transport.ByteStream`.
 

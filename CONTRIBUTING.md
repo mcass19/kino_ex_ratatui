@@ -50,6 +50,8 @@ The bundled output lands at `lib/assets/kino_ex_ratatui/main.js` (and `main.css`
 
 If you change anything under `assets/js/`, rerun `mix assets.build` and commit the regenerated bundle.
 
+The hook's pure logic (theme/display resolution) has unit tests under `assets/test/`. Run them with `cd assets && npm test` — Node's built-in test runner, no extra deps. CI runs them on every push.
+
 ## Branching and Commits
 
 - Branch from `main`

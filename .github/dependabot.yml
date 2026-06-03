@@ -14,6 +14,19 @@ updates:
       - "dependencies"
       - "elixir"
 
+  - package-ecosystem: npm
+    directory: "/assets"
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      npm-dependencies:
+        patterns:
+          - "*"
+    labels:
+      - "dependencies"
+      - "javascript"
+
   - package-ecosystem: github-actions
     directory: "/"
     schedule:

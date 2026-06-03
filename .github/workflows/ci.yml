@@ -69,10 +69,18 @@ jobs:
       - run: mix dialyzer --format github
         if: ${{ matrix.lint }}
 
+      - name: Install JS deps
+        if: ${{ matrix.lint }}
+        run: cd assets && npm ci
+
+      - name: Run JS hook tests
+        if: ${{ matrix.lint }}
+        run: cd assets && npm test
+
       - name: Verify JS bundle is in sync
         if: ${{ matrix.lint }}
         run: |
-          cd assets && npm ci && npm run build && cd ..
+          cd assets && npm run build && cd ..
           git diff --exit-code lib/assets/
 
       - run: mix test --cover

@@ -6,7 +6,8 @@
   "description": "JS bundle for the kino_ex_ratatui Livebook widget (xterm.js + FitAddon).",
   "scripts": {
     "build": "node build.js",
-    "build:dev": "node build.js --dev"
+    "build:dev": "node build.js --dev",
+    "test": "node --test"
   },
   "dependencies": {
     "@xterm/addon-fit": "0.10.0",
