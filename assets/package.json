@@ -10,9 +10,9 @@
     "test": "node --test"
   },
   "dependencies": {
-    "@xterm/addon-fit": "0.10.0",
+    "@xterm/addon-fit": "0.11.0",
     "@xterm/addon-image": "^0.9.0",
-    "@xterm/xterm": "5.5.0"
+    "@xterm/xterm": "6.0.0"
   },
   "devDependencies": {
     "esbuild": "0.28.0"
