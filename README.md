@@ -34,7 +34,7 @@ Five notebook examples live under [`examples/`](https://github.com/mcass19/kino_
 
 ## Installation
 
-Add `kino_ex_ratatui` to your Livebook setup cell (or your project's `mix.exs`):
+Add `kino_ex_ratatui` to the Livebook setup cell (or the project's `mix.exs`):
 
 ```elixir
 Mix.install([
@@ -45,7 +45,7 @@ Mix.install([
 ### Prerequisites
 
 - Elixir 1.17+
-- Livebook 0.13+
+- Livebook 0.19+
 
 ## Quick Start
 
@@ -124,7 +124,7 @@ The runtime server starts lazily on the first `"resize"` event so the `ExRatatui
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
-KinoExRatatui is built on [ExRatatui](https://github.com/mcass19/ex_ratatui), a general-purpose terminal UI library for Elixir. If you're interested in improving the underlying rendering, widgets, or layout engine, contributions to ExRatatui are very welcome as well.
+KinoExRatatui is built on [ExRatatui](https://github.com/mcass19/ex_ratatui), a general-purpose terminal UI library for Elixir. Contributions to its underlying rendering, widgets, or layout engine are very welcome too.
 
 ## License
 

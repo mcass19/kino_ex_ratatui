@@ -1,6 +1,6 @@
 # Telemetry
 
-`kino_ex_ratatui` emits [`:telemetry`](https://hexdocs.pm/telemetry/) events at the boundaries the widget itself controls. They sit one layer above the events `ex_ratatui` already emits — together they give you a complete profile of a Livebook-driven TUI.
+`kino_ex_ratatui` emits [`:telemetry`](https://hexdocs.pm/telemetry/) events at the boundaries the widget itself controls. They sit one layer above the events `ex_ratatui` already emits — together they give a complete profile of a Livebook-driven TUI.
 
 ## Event tree at a glance
 
@@ -19,7 +19,7 @@ See `Kino.ExRatatui.Telemetry` for the full metadata reference.
 ## Quick start: log every event
 
 ```elixir
-# In a Livebook setup cell, or your application's start/2 callback:
+# In a Livebook setup cell, or the application's start/2 callback:
 Kino.ExRatatui.Telemetry.attach_default_logger(level: :info)
 ```
 
@@ -27,7 +27,7 @@ Detach with `Kino.ExRatatui.Telemetry.detach_default_logger/0`.
 
 ## Wiring `Telemetry.Metrics`
 
-If you're already running `Telemetry.Metrics` (e.g. in a Phoenix LiveDashboard), add these alongside whatever `ex_ratatui` metrics you care about:
+If `Telemetry.Metrics` is already running (e.g. in a Phoenix LiveDashboard), add these alongside whatever `ex_ratatui` metrics matter:
 
 ```elixir
 defmodule MyApp.Telemetry do
@@ -67,11 +67,11 @@ The two trees are complementary, not duplicative:
 | `mount/1` runtime, App `handle_event/2`, render command building | `[:ex_ratatui, ...]` |
 | Widget boot (network handshake + first `Transport.start_server/1`), ANSI broadcast over the Kino bridge, client input forwarding | `[:kino_ex_ratatui, ...]` |
 
-Attach to whichever you need. A typical setup attaches `[:ex_ratatui, :runtime, :event, :stop]` for App-level latency and `[:kino_ex_ratatui, :render, :frame, :stop]` for the wire cost — together you can spot where time is going without instrumenting either layer manually.
+Attach to whichever is needed. A typical setup attaches `[:ex_ratatui, :runtime, :event, :stop]` for App-level latency and `[:kino_ex_ratatui, :render, :frame, :stop]` for the wire cost — together they show where time is going without instrumenting either layer manually.
 
 ## Custom handlers
 
-The public helpers `Kino.ExRatatui.Telemetry.span/3` and `Kino.ExRatatui.Telemetry.execute/3` are thin wrappers around `:telemetry.span/3` and `:telemetry.execute/3` that prepend `:kino_ex_ratatui` to the event name. Use them if you're building a higher-level wrapper around `Kino.ExRatatui.new/2` and want to emit your own events under the same namespace.
+The public helpers `Kino.ExRatatui.Telemetry.span/3` and `Kino.ExRatatui.Telemetry.execute/3` are thin wrappers around `:telemetry.span/3` and `:telemetry.execute/3` that prepend `:kino_ex_ratatui` to the event name. Use them when building a higher-level wrapper around `Kino.ExRatatui.new/2` to emit events under the same namespace.
 
 For one-off handlers, attach directly:
 

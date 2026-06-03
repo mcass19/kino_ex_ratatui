@@ -56,7 +56,7 @@ defmodule KinoExRatatui.MixProject do
     [
       {:ex_ratatui, "~> 0.10"},
       {:kino, "~> 0.19"},
-      {:telemetry, "~> 1.4"},
+      {:telemetry, "~> 1.0"},
 
       # Test
       {:stream_data, "~> 1.1", only: :test},

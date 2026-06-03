@@ -1,10 +1,10 @@
 # Contributing to KinoExRatatui
 
-Thanks for your interest in contributing!
+Thanks for the interest in contributing!
 
-KinoExRatatui is built on [ExRatatui](https://github.com/mcass19/ex_ratatui). Feel free to also consider contributing on the upstream library if you're missing a feature, or something is not working. Contributions are welcome everywhere!
+KinoExRatatui is built on [ExRatatui](https://github.com/mcass19/ex_ratatui). Consider contributing to the upstream library too when a feature is missing or something is not working. Contributions are welcome everywhere!
 
-This guide will help you get set up.
+This guide covers the setup.
 
 ## Setup
 
@@ -48,7 +48,7 @@ cd assets && npm run build:dev   # with sourcemaps
 
 The bundled output lands at `lib/assets/kino_ex_ratatui/main.js` (and `main.css` for xterm's stylesheet). Both files are committed so the published hex package needs no Node toolchain at install time.
 
-If you change anything under `assets/js/`, rerun `mix assets.build` and commit the regenerated bundle.
+When anything under `assets/js/` changes, rerun `mix assets.build` and commit the regenerated bundle.
 
 The hook's pure logic (theme/display resolution) has unit tests under `assets/test/`. Run them with `cd assets && npm test` — Node's built-in test runner, no extra deps. CI runs them on every push.
 

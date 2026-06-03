@@ -61,7 +61,7 @@ defmodule Kino.ExRatatui.Telemetry do
 
   ## Attaching a default logger
 
-      # In your Livebook setup cell (or your application's start/2):
+      # In a Livebook setup cell (or the application's start/2):
       Kino.ExRatatui.Telemetry.attach_default_logger()
 
   That attaches a handler logging every `:stop` and single event at

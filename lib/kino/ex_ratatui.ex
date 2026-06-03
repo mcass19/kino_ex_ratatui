@@ -33,7 +33,7 @@ defmodule Kino.ExRatatui do
   The second argument to `new/2` is a keyword list. Any key not listed
   under [Display options](#module-display-options) below is forwarded
   verbatim to `c:ExRatatui.App.mount/1`. Use it for per-instance
-  configuration your App reads from its mount opts.
+  configuration the App reads from its mount opts.
 
   The keys `:mod`, `:name`, and `:transport` are reserved by the
   runtime and silently overwritten.
@@ -68,9 +68,9 @@ defmodule Kino.ExRatatui do
   ## Global configuration
 
   Set defaults that apply to every `new/2` and `frame/2` call in the
-  current Livebook (or your application's runtime) with `configure/1`:
+  current Livebook (or the application's runtime) with `configure/1`:
 
-      # In a setup cell, or your application's start/2:
+      # In a setup cell, or the application's start/2:
       Kino.ExRatatui.configure(
         theme: :livebook,
         font_family: "JetBrains Mono, ui-monospace, monospace",
@@ -263,7 +263,7 @@ defmodule Kino.ExRatatui do
 
   Per-instance opts on `new/2` / `frame/2` still win key-by-key.
   Calling `configure/1` again merges into the existing config rather
-  than replacing it, so you can split related settings across cells.
+  than replacing it, so related settings can be split across cells.
 
   Returns `:ok`.
 
@@ -278,7 +278,7 @@ defmodule Kino.ExRatatui do
 
   Stored under the `:kino_ex_ratatui` Application environment, so the
   same value is also reachable via `Application.get_all_env(:kino_ex_ratatui)`
-  if you're orchestrating from a release `config/runtime.exs` or any
+  when orchestrating from a release `config/runtime.exs` or any
   other `Config`-driven setup.
   """
   @spec configure(keyword()) :: :ok

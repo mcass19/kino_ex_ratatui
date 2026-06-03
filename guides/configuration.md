@@ -6,7 +6,7 @@
 per-instance opts (new/2 / frame/2)  >  configure/1  >  module defaults
 ```
 
-Each key is resolved independently, so you can set a global font and theme via `configure/1` and still override just the theme on an individual cell.
+Each key is resolved independently, so a global font and theme can be set via `configure/1` while still overriding just the theme on an individual cell.
 
 ## Per-instance opts
 
@@ -105,4 +105,4 @@ Each key is resolved independently — there's no "all-or-nothing" inheritance.
 
 ## When configure/1 is the wrong tool
 
-If your TUI app needs runtime knowledge (current user, request id, …), thread that through `c:ExRatatui.App.mount/1` instead. `configure/1` is for cosmetics: theme, font, height, cursor, scrollback, stopped message — values that don't change between cells in the same notebook.
+If a TUI app needs runtime knowledge (current user, request id, …), thread that through `c:ExRatatui.App.mount/1` instead. `configure/1` is for cosmetics: theme, font, height, cursor, scrollback, stopped message — values that don't change between cells in the same notebook.
