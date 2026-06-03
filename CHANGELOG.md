@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-06-03
+
 ### Fixed
 
 - Correct the documented Livebook floor to 0.19+ (it tracks the `kino ~> 0.19` requirement), and repair the malformed `[0.1.1]`–`[0.2.1]` CHANGELOG compare links.
@@ -65,7 +67,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Test suite** — 22 tests via `Kino.Test`'s `configure_livebook_bridge` + `push_event/3` + `assert_broadcast_event/3`, covering: lazy boot, mount-opts pass-through, handle_connect payload, first/subsequent resize, input round-trip, input arriving before first resize, server `:DOWN`, terminate cleanup, mount failure, unrelated `handle_info` messages, and `__assets_info__/0`. Runs async in 0.2s, 100% line coverage (test fixtures excluded via `test_coverage: [ignore_modules: [...]]`).
 - **Three bundled example notebooks** under `examples/` — `system_monitor.livemd` (callback-runtime dashboard porting `ex_ratatui/examples/system_monitor.exs` with `Gauge`, `Table`, `/proc` polling), `chat_interface.livemd` (callback-runtime AI-chat mock exercising `Markdown`, `Textarea`, `Throbber`, `Scrollbar`, and `/`-prefixed `SlashCommands` autocomplete via `Popup` — ported from the original imperative `ExRatatui.run/1` loop in `ex_ratatui/examples/chat_interface.exs`), and `reducer_counter.livemd` (reducer-runtime counter with a `Subscription.interval` plus a `Kino.ExRatatui.frame/2` static-frame demo). Each notebook cross-references the other two and links to the relevant runtime guide so any one of them is a complete jumping-off point.
 
-[Unreleased]: https://github.com/mcass19/kino_ex_ratatui/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/mcass19/kino_ex_ratatui/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/mcass19/kino_ex_ratatui/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/mcass19/kino_ex_ratatui/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/mcass19/kino_ex_ratatui/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/mcass19/kino_ex_ratatui/compare/v0.1.0...v0.1.1
