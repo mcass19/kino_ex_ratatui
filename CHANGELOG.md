@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Split the pure theme/display resolution (`resolveTheme`, `resolveDisplay`, `prefersDark`, and the bundled theme/default constants) out of the JS hook into a dependency-free `assets/js/display.js`, and cover it with `node --test` unit tests (`assets/test/display.test.js`). `main.js` imports it; the bundled `lib/assets/kino_ex_ratatui/main.js` is byte-different but behavior-identical.
 - Move the README demo GIF from `assets/` to `.github/demo.gif`, leaving `assets/` for the JS build pipeline only.
+- Add an Ecosystem section and a Guides table to the README, surfacing the Configuration and Telemetry guides — matching `ex_ratatui` and `phoenix_ex_ratatui`.
 
 ### Internal
 

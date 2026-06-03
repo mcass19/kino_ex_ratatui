@@ -27,6 +27,11 @@ Run [ExRatatui](https://github.com/mcass19/ex_ratatui) apps inside [Livebook](ht
 
 Five notebook examples live under [`examples/`](https://github.com/mcass19/kino_ex_ratatui/tree/main/examples) — open them in Livebook and run the cells. See the [catalog](https://github.com/mcass19/kino_ex_ratatui/blob/main/examples/README.md) for a one-liner per notebook and a recommended starting point.
 
+## Ecosystem
+
+- [ex_ratatui](https://github.com/mcass19/ex_ratatui) — The core terminal UI library this builds on.
+- [phoenix_ex_ratatui](https://github.com/mcass19/phoenix_ex_ratatui) — Run TUIs in the browser within [Phoenix LiveView](https://phoenix-live-view.hexdocs.pm/Phoenix.LiveView.html).
+
 ## Installation
 
 Add `kino_ex_ratatui` to your Livebook setup cell (or your project's `mix.exs`):
@@ -108,7 +113,12 @@ xterm.write(bytes)    <──    broadcast_event("ansi", _)      <──   write
 
 The runtime server starts lazily on the first `"resize"` event so the `ExRatatui.Session` opens at the exact dimensions xterm.js's FitAddon settled on. From there, input bytes round-trip through `ExRatatui.Transport.ByteStream.forward_input/3` (which absorbs synthesized `Event.Resize` events and dispatches everything else as `{:ex_ratatui_event, _}`). When the App returns `{:stop, _}`, the live widget catches the runtime's `:DOWN` and broadcasts a stop state message.
 
-If you want to write your own transport, the [Custom Transports guide](https://hexdocs.pm/ex_ratatui/custom_transports.html) walks through the contract in full.
+## Guides
+
+| Guide | Description |
+|-------|-------------|
+| [Configuration](guides/configuration.md) | Global display defaults via `configure/1`, the theme atom shorthands, and the merge order |
+| [Telemetry](guides/telemetry.md) | `:telemetry` events for transport, render, input, and resize — logging and `Telemetry.Metrics` |
 
 ## Contributing
 
