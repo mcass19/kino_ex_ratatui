@@ -1,6 +1,6 @@
 {
   "name": "kino_ex_ratatui_assets",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "type": "module",
   "description": "JS bundle for the kino_ex_ratatui Livebook widget (xterm.js + FitAddon + ImageAddon).",

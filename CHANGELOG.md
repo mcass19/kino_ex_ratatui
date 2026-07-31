@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-07-31
+
+### Changed
+
+- **Bundled xterm.js runtime upgraded to 6.0.0** (from 5.5.0), alongside `@xterm/addon-fit` 0.11.0 (from 0.10.0). Since the esbuild output is committed under `lib/assets/kino_ex_ratatui/` and shipped in the Hex package, this is the only way the new runtime reaches notebooks — there is no Node toolchain at install time. No Elixir API change, no per-instance display option change, and no change to the wire protocol between the widget and the hook: the hook uses only surface that survived the major (`Terminal`, `loadAddon`, `open`, `write`, `onData`, `buffer`, and the `ITheme` keys behind `:theme`). `@xterm/addon-image` stays at 0.9.0, so Sixel and iTerm2 inline images (see the **Inline images** section of the `Kino.ExRatatui` moduledoc) keep rendering through the same parser handlers.
+
+### Internal
+
+- CI covers Elixir 1.20 / OTP 28.5, and the lint job — formatting, `credo --strict`, dialyzer, `xref` cycles, the JS hook tests, the bundle-drift check, and `mix test --cover` — moved there from 1.19. The 1.17 floor is unchanged.
+- Development dependencies tracked forward by Dependabot: `ex_ratatui` 0.11.1 in `mix.lock` (the `~> 0.10` requirement already admitted it, so nothing changes for consumers), `credo` 1.7.19, `stream_data` 1.4.0, `esbuild` 0.28.1, and the `actions/checkout`, `actions/cache`, and `actions/setup-node` GitHub Actions.
+
 ## [0.2.2] - 2026-06-03
 
 ### Fixed
@@ -67,7 +78,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Test suite** — 22 tests via `Kino.Test`'s `configure_livebook_bridge` + `push_event/3` + `assert_broadcast_event/3`, covering: lazy boot, mount-opts pass-through, handle_connect payload, first/subsequent resize, input round-trip, input arriving before first resize, server `:DOWN`, terminate cleanup, mount failure, unrelated `handle_info` messages, and `__assets_info__/0`. Runs async in 0.2s, 100% line coverage (test fixtures excluded via `test_coverage: [ignore_modules: [...]]`).
 - **Three bundled example notebooks** under `examples/` — `system_monitor.livemd` (callback-runtime dashboard porting `ex_ratatui/examples/system_monitor.exs` with `Gauge`, `Table`, `/proc` polling), `chat_interface.livemd` (callback-runtime AI-chat mock exercising `Markdown`, `Textarea`, `Throbber`, `Scrollbar`, and `/`-prefixed `SlashCommands` autocomplete via `Popup` — ported from the original imperative `ExRatatui.run/1` loop in `ex_ratatui/examples/chat_interface.exs`), and `reducer_counter.livemd` (reducer-runtime counter with a `Subscription.interval` plus a `Kino.ExRatatui.frame/2` static-frame demo). Each notebook cross-references the other two and links to the relevant runtime guide so any one of them is a complete jumping-off point.
 
-[Unreleased]: https://github.com/mcass19/kino_ex_ratatui/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/mcass19/kino_ex_ratatui/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/mcass19/kino_ex_ratatui/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/mcass19/kino_ex_ratatui/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/mcass19/kino_ex_ratatui/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/mcass19/kino_ex_ratatui/compare/v0.1.1...v0.2.0
