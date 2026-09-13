@@ -31,6 +31,7 @@ Five notebook examples live under [`examples/`](https://github.com/mcass19/kino_
 
 - [ex_ratatui](https://github.com/mcass19/ex_ratatui) — The core terminal UI library this builds on.
 - [phoenix_ex_ratatui](https://github.com/mcass19/phoenix_ex_ratatui) — Run TUIs in the browser within [Phoenix LiveView](https://phoenix-live-view.hexdocs.pm/Phoenix.LiveView.html).
+- [raster_ex_ratatui](https://github.com/mcass19/raster_ex_ratatui) — Run TUIs on pixel displays such as e-ink panels, with helpers for Linux framebuffers.
 
 ## Installation
 
